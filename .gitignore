@@ -1,0 +1,10 @@
+# MacOS
+.DS_Store
+
+# IntelliJ IDEA
+/.idea/
+/osf-builder-suite-for-sfcc-deploy.iml
+
+# Workspace
+/work/
+/target/

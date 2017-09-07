@@ -1,0 +1,79 @@
+<?jelly escape-by-default='true'?>
+<j:jelly
+    xmlns:j="jelly:core"
+    xmlns:st="jelly:stapler"
+    xmlns:d="jelly:define"
+    xmlns:l="/lib/layout"
+    xmlns:t="/lib/hudson"
+    xmlns:f="/lib/form"
+    xmlns:c="/lib/credentials">
+
+    <f:entry
+        title="Instance Hostname"
+        field="hostname"
+        help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-hostname.html">
+
+        <f:textbox clazz="required"/>
+    </f:entry>
+
+    <f:entry
+        title="Business Manager Credentials"
+        field="bmCredentialsId"
+        help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-bmCredentialsId.html">
+
+        <c:select />
+    </f:entry>
+
+    <f:entry
+        title="Two Factor Auth Credentials"
+        field="tfCredentialsId"
+        help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-tfCredentialsId.html">
+
+        <c:select />
+    </f:entry>
+
+    <f:entry
+        title="Build Version"
+        field="buildVersion"
+        help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-buildVersion.html">
+
+        <f:textbox clazz="required" />
+    </f:entry>
+
+    <f:entry
+        title="Activate Build"
+        field="activateBuild"
+        help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-activateBuild.html">
+
+        <f:checkbox value="true" />
+    </f:entry>
+
+    <f:advanced>
+        <f:entry
+            title="Sources"
+            help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-sources.html">
+
+            <f:repeatableProperty field="sourcePaths">
+                <div align="right">
+                    <f:repeatableDeleteButton />
+                </div>
+            </f:repeatableProperty>
+        </f:entry>
+
+        <f:entry
+            title="Create Build Info Cartridge"
+            field="createBuildInfoCartridge"
+            help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-createBuildInfoCartridge.html">
+
+            <f:checkbox value="true" />
+        </f:entry>
+
+        <f:entry
+            title="Temp Build Directory"
+            field="tempDirectory"
+            help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-tempDirectory.html">
+
+            <f:textbox clazz="required" />
+        </f:entry>
+    </f:advanced>
+</j:jelly>

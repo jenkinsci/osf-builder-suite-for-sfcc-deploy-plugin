@@ -1,0 +1,21 @@
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:f="/lib/form">
+    <f:entry
+        title="Source Path"
+        field="sourcePath"
+        help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-sources-sourcePath.html">
+
+        <f:textbox />
+    </f:entry>
+
+    <f:entry
+        title="Exclude Patterns"
+        help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-sources-excludePatterns.html">
+
+        <f:repeatableProperty field="excludePatterns">
+            <div align="right">
+                <f:repeatableDeleteButton />
+            </div>
+        </f:repeatableProperty>
+    </f:entry>
+</j:jelly>

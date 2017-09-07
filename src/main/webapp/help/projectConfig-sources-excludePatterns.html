@@ -1,0 +1,50 @@
+<div>
+    List of patterns to be ignored. If a path matches any of the patterns in this list then it will be ignored and
+    not added to the build.
+    <br>
+    <br>
+    When a path is matched against a pattern, the following special characters can be used:
+    <ul>
+        <li>
+            <tt>?</tt>
+            <br>
+            Matches one character (any character except path separators)
+        </li>
+        <li>
+            <tt>*</tt>
+            <br>
+            Matches zero or more characters (not including path separators)
+        </li>
+        <li>
+            <tt>**</tt>
+            <br>
+            Matches zero or more path segments
+        </li>
+    </ul>
+
+    Examples:
+    <ul>
+        <li>
+            <tt>**\*.js</tt>
+            <br>
+            Matches all .js files/dirs in a directory tree
+        </li>
+        <li>
+            <tt>test\a??.js</tt>
+            <br>
+            Matches all files/dirs which start with an <tt>a</tt>, then two more characters and then <tt>.js</tt>,
+            in a directory called test.
+        </li>
+        <li>
+            <tt>**</tt>
+            <br>
+            Matches everything in a directory tree
+        </li>
+        <li>
+            <tt>**\test\**\XYZ*</tt>
+            <br>
+            Matches all files/dirs which start with <tt>XYZ</tt> and where there is a parent directory called
+            <tt>test</tt> (e.g. <tt>abc\test\def\ghi\XYZ123</tt>)
+        </li>
+    </ul>
+</div>
