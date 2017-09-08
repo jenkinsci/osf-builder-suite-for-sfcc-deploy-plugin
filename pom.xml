@@ -43,7 +43,7 @@
 
     <properties>
         <jdk.version>1.8</jdk.version>
-        <jenkins.version>2.7.1</jenkins.version>
+        <jenkins.version>2.32.1</jenkins.version>
     </properties>
 
     <build>
