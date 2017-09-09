@@ -13,7 +13,7 @@
     </parent>
 
     <artifactId>osf-builder-suite-for-sfcc-deploy</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.0-SNAPSHOT</version>
     <packaging>hpi</packaging>
 
     <name>OSF Builder Suite For Salesforce Commerce Cloud (Deploy)</name>
