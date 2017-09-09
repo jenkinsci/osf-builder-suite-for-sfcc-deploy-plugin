@@ -18,7 +18,7 @@
 
     <name>OSF Builder Suite For Salesforce Commerce Cloud (Deploy)</name>
     <description>Deploy your build to a Salesforce Commerce Cloud instance</description>
-    <url>https://github.com/jenkinsci/${project.artifactId}-plugin</url>
+    <url>https://wiki.jenkins.io/display/JENKINS/OSF+Builder+Suite+For+Salesforce+Commerce+Cloud+%28Deploy%29+Plugin</url>
 
     <developers>
         <developer>
