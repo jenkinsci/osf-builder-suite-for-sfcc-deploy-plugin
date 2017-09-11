@@ -7,7 +7,7 @@
     xmlns:t="/lib/hudson"
     xmlns:f="/lib/form">
 
-    <f:section title="OSF Builder Suite For Salesforce Commerce Cloud (Deploy : HTTP Proxy Settings)">
+    <f:section title="OSF Builder Suite For Salesforce Commerce Cloud :: Deploy (HTTP Proxy Settings)">
         <f:entry
             title="HTTP Proxy Host"
             field="httpProxyHost"
@@ -41,7 +41,7 @@
         </f:entry>
     </f:section>
 
-    <f:section title="OSF Builder Suite For Salesforce Commerce Cloud (Deploy : HTTP Settings)">
+    <f:section title="OSF Builder Suite For Salesforce Commerce Cloud :: Deploy (HTTP Settings)">
         <f:entry
             title="Disable SSL validation"
             field="disableSSLValidation"

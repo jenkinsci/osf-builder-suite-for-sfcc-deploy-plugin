@@ -287,7 +287,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
 
         public String getDisplayName() {
-            return "OSF Builder Suite For Salesforce Commerce Cloud (Deploy)";
+            return "OSF Builder Suite For Salesforce Commerce Cloud :: Deploy";
         }
 
         public boolean isApplicable(Class<? extends AbstractProject> aClass) {

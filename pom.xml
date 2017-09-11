@@ -14,7 +14,7 @@
     <version>1.0.2-SNAPSHOT</version>
     <packaging>hpi</packaging>
 
-    <name>OSF Builder Suite For Salesforce Commerce Cloud (Deploy)</name>
+    <name>OSF Builder Suite For Salesforce Commerce Cloud :: Deploy</name>
     <description>Deploy your build to a Salesforce Commerce Cloud instance</description>
     <url>https://wiki.jenkins.io/display/JENKINS/OSF+Builder+Suite+For+Salesforce+Commerce+Cloud+Deploy+Plugin</url>
 

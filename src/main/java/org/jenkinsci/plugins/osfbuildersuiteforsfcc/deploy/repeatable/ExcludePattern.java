@@ -31,7 +31,7 @@ public class ExcludePattern implements Serializable, Describable<ExcludePattern>
 
         @Override
         public String getDisplayName() {
-            return "OSF Builder Suite For Salesforce Commerce Cloud (Deploy : ExcludePattern)";
+            return "OSF Builder Suite For Salesforce Commerce Cloud :: Deploy (ExcludePattern)";
         }
     }
 }
