@@ -41,6 +41,14 @@
     </f:entry>
 
     <f:entry
+        title="Create Build Info Cartridge"
+        field="createBuildInfoCartridge"
+        help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-createBuildInfoCartridge.html">
+
+        <f:checkbox value="true" />
+    </f:entry>
+
+    <f:entry
         title="Activate Build"
         field="activateBuild"
         help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-activateBuild.html">
@@ -48,32 +56,22 @@
         <f:checkbox value="true" />
     </f:entry>
 
-    <f:advanced>
-        <f:entry
-            title="Sources"
-            help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-sources.html">
+    <f:entry
+        title="Sources"
+        help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-sources.html">
 
-            <f:repeatableProperty field="sourcePaths">
-                <div align="right">
-                    <f:repeatableDeleteButton />
-                </div>
-            </f:repeatableProperty>
-        </f:entry>
+        <f:repeatableProperty field="sourcePaths">
+            <div align="right">
+                <f:repeatableDeleteButton />
+            </div>
+        </f:repeatableProperty>
+    </f:entry>
 
-        <f:entry
-            title="Create Build Info Cartridge"
-            field="createBuildInfoCartridge"
-            help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-createBuildInfoCartridge.html">
+    <f:entry
+        title="Temp Build Directory"
+        field="tempDirectory"
+        help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-tempDirectory.html">
 
-            <f:checkbox value="true" />
-        </f:entry>
-
-        <f:entry
-            title="Temp Build Directory"
-            field="tempDirectory"
-            help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-tempDirectory.html">
-
-            <f:textbox clazz="required" />
-        </f:entry>
-    </f:advanced>
+        <f:textbox clazz="required" />
+    </f:entry>
 </j:jelly>

@@ -84,23 +84,23 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
     private String bmCredentialsId;
     private String tfCredentialsId;
     private String buildVersion;
+    private Boolean createBuildInfoCartridge;
     private Boolean activateBuild;
     private List<SourcePath> sourcePaths;
-    private Boolean createBuildInfoCartridge;
     private String tempDirectory;
 
     @DataBoundConstructor
     public DeployBuilder(String hostname, String bmCredentialsId, String tfCredentialsId,
-                         String buildVersion, Boolean activateBuild, List<SourcePath> sourcePaths,
-                         Boolean createBuildInfoCartridge, String tempDirectory) {
+                         String buildVersion, Boolean createBuildInfoCartridge, Boolean activateBuild,
+                         List<SourcePath> sourcePaths, String tempDirectory) {
 
         this.hostname = hostname;
         this.bmCredentialsId = bmCredentialsId;
         this.tfCredentialsId = tfCredentialsId;
         this.buildVersion = buildVersion;
+        this.createBuildInfoCartridge = createBuildInfoCartridge;
         this.activateBuild = activateBuild;
         this.sourcePaths = sourcePaths;
-        this.createBuildInfoCartridge = createBuildInfoCartridge;
         this.tempDirectory = tempDirectory;
     }
 
@@ -149,6 +149,17 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
     }
 
     @SuppressWarnings("unused")
+    public Boolean getCreateBuildInfoCartridge() {
+        return createBuildInfoCartridge;
+    }
+
+    @SuppressWarnings("unused")
+    @DataBoundSetter
+    public void setCreateBuildInfoCartridge(Boolean createBuildInfoCartridge) {
+        this.createBuildInfoCartridge = createBuildInfoCartridge;
+    }
+
+    @SuppressWarnings("unused")
     public Boolean getActivateBuild() {
         return activateBuild;
     }
@@ -168,17 +179,6 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
     @DataBoundSetter
     public void setSourcePaths(List<SourcePath> sourcePaths) {
         this.sourcePaths = sourcePaths;
-    }
-
-    @SuppressWarnings("unused")
-    public Boolean getCreateBuildInfoCartridge() {
-        return createBuildInfoCartridge;
-    }
-
-    @SuppressWarnings("unused")
-    @DataBoundSetter
-    public void setCreateBuildInfoCartridge(Boolean createBuildInfoCartridge) {
-        this.createBuildInfoCartridge = createBuildInfoCartridge;
     }
 
     @SuppressWarnings("unused")
@@ -241,7 +241,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     workspace, listener, hostname, bmCredentialsId,
                     bmCredentials, tfCredentialsId, tfCredentials,
                     expandedBuildVersion, getBuildCause(build), build.getNumber(),
-                    activateBuild, sourcePaths, createBuildInfoCartridge, tempDirectory,
+                    createBuildInfoCartridge, activateBuild, sourcePaths, tempDirectory,
                     getDescriptor().getHttpProxyHost(),
                     getDescriptor().getHttpProxyPort(),
                     getDescriptor().getHttpProxyUsername(),
@@ -410,9 +410,9 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         private final String buildVersion;
         private final String buildCause;
         private final Integer buildNumber;
+        private final Boolean createBuildInfoCartridge;
         private final Boolean activateBuild;
         private final List<SourcePath> sourcePaths;
-        private final Boolean createBuildInfoCartridge;
         private final String tempDirectory;
         private final String httpProxyHost;
         private final String httpProxyPort;
@@ -424,8 +424,8 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         public DeployCallable(FilePath workspace, TaskListener listener, String hostname, String bmCredentialsId,
                               StandardUsernamePasswordCredentials bmCredentials, String tfCredentialsId,
                               TwoFactorAuthCredentials tfCredentials, String buildVersion, String buildCause,
-                              Integer buildNumber, Boolean activateBuild, List<SourcePath> sourcePaths,
-                              Boolean createBuildInfoCartridge, String tempDirectory, String httpProxyHost,
+                              Integer buildNumber, Boolean createBuildInfoCartridge, Boolean activateBuild,
+                              List<SourcePath> sourcePaths, String tempDirectory, String httpProxyHost,
                               String httpProxyPort, String httpProxyUsername, String httpProxyPassword,
                               Boolean disableSSLValidation) {
 
@@ -439,9 +439,9 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             this.buildVersion = buildVersion;
             this.buildCause = buildCause;
             this.buildNumber = buildNumber;
+            this.createBuildInfoCartridge = createBuildInfoCartridge;
             this.activateBuild = activateBuild;
             this.sourcePaths = sourcePaths;
-            this.createBuildInfoCartridge = createBuildInfoCartridge;
             this.tempDirectory = tempDirectory;
             this.httpProxyHost = httpProxyHost;
             this.httpProxyPort = httpProxyPort;
@@ -792,7 +792,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
 
             /* Setup HTTP Client */
             HttpClientBuilder httpClientBuilder = HttpClients.custom();
-            httpClientBuilder.setUserAgent("Jenkins (OSF Builder Suite For Salesforce Commerce Cloud)");
+            httpClientBuilder.setUserAgent("Jenkins (OSF Builder Suite For Salesforce Commerce Cloud :: Deploy)");
             httpClientBuilder.setDefaultCookieStore(new BasicCookieStore());
 
             httpClientBuilder.addInterceptorFirst((HttpRequestInterceptor) (request, context) -> {
