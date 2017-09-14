@@ -1106,7 +1106,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 }
             }
 
-            if (disableSSLValidation) {
+            if (disableSSLValidation != null && disableSSLValidation) {
                 try {
                     sslContextBuilder.loadTrustMaterial(null, (TrustStrategy) (arg0, arg1) -> true);
                 } catch (NoSuchAlgorithmException | KeyStoreException e) {
@@ -1130,12 +1130,19 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 return false;
             }
 
-            httpClientBuilder.setSSLSocketFactory(new SSLConnectionSocketFactory(
-                    customSSLContext, (disableSSLValidation
-                            ? NoopHostnameVerifier.INSTANCE
-                            : SSLConnectionSocketFactory.getDefaultHostnameVerifier()
-                    )
-            ));
+            if (disableSSLValidation != null && disableSSLValidation) {
+                httpClientBuilder.setSSLSocketFactory(
+                        new SSLConnectionSocketFactory(
+                                customSSLContext, NoopHostnameVerifier.INSTANCE
+                        )
+                );
+            } else {
+                httpClientBuilder.setSSLSocketFactory(
+                        new SSLConnectionSocketFactory(
+                                customSSLContext, SSLConnectionSocketFactory.getDefaultHostnameVerifier()
+                        )
+                );
+            }
 
             CloseableHttpClient httpClient = httpClientBuilder.build();
             /* Setup HTTP Client */
