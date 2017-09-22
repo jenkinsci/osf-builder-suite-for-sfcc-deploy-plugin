@@ -48,6 +48,7 @@ import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
 import org.codehaus.plexus.util.MatchPattern;
 import org.jenkinsci.Symbol;
+import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.TwoFactorAuthCredentials;
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.deploy.repeatable.ExcludePattern;
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.deploy.repeatable.SourcePath;
 import org.jenkinsci.plugins.tokenmacro.MacroEvaluationException;
@@ -213,35 +214,47 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         logger.println();
 
         try {
-            StandardUsernamePasswordCredentials bmCredentials =
-                    com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
-                            bmCredentialsId,
-                            StandardUsernamePasswordCredentials.class,
-                            build, URIRequirementBuilder.create().build()
-                    );
+            StandardUsernamePasswordCredentials bmCredentials = null;
+            if (StringUtils.isEmpty(bmCredentialsId)) {
+                bmCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
+                        bmCredentialsId,
+                        StandardUsernamePasswordCredentials.class,
+                        build, URIRequirementBuilder.create().build()
+                );
+            }
 
             if (bmCredentials != null) {
                 com.cloudbees.plugins.credentials.CredentialsProvider.track(build, bmCredentials);
             }
 
-            TwoFactorAuthCredentials tfCredentials =
-                    com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
-                            tfCredentialsId,
-                            TwoFactorAuthCredentials.class,
-                            build, URIRequirementBuilder.create().build()
-                    );
+            TwoFactorAuthCredentials tfCredentials = null;
+            if (StringUtils.isEmpty(tfCredentialsId)) {
+                tfCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
+                        tfCredentialsId,
+                        TwoFactorAuthCredentials.class,
+                        build, URIRequirementBuilder.create().build()
+                );
+            }
 
             if (tfCredentials != null) {
                 com.cloudbees.plugins.credentials.CredentialsProvider.track(build, tfCredentials);
             }
 
-            String expandedBuildVersion = TokenMacro.expandAll(build, workspace, listener, buildVersion);
-
             DeployCallable deployCallable = new DeployCallable(
-                    workspace, listener, hostname, bmCredentialsId,
-                    bmCredentials, tfCredentialsId, tfCredentials,
-                    expandedBuildVersion, getBuildCause(build), build.getNumber(),
-                    createBuildInfoCartridge, activateBuild, sourcePaths, tempDirectory,
+                    workspace,
+                    listener,
+                    hostname,
+                    bmCredentialsId,
+                    bmCredentials,
+                    tfCredentialsId,
+                    tfCredentials,
+                    TokenMacro.expandAll(build, workspace, listener, buildVersion),
+                    getBuildCause(build),
+                    build.getNumber(),
+                    createBuildInfoCartridge,
+                    activateBuild,
+                    sourcePaths,
+                    tempDirectory,
                     getDescriptor().getHttpProxyHost(),
                     getDescriptor().getHttpProxyPort(),
                     getDescriptor().getHttpProxyUsername(),

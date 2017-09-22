@@ -31,7 +31,7 @@
         <developerConnection>scm:git:git@github.com:jenkinsci/${project.artifactId}-plugin.git</developerConnection>
         <url>https://github.com/jenkinsci/${project.artifactId}-plugin</url>
       <tag>HEAD</tag>
-  </scm>
+    </scm>
 
     <licenses>
         <license>
@@ -113,6 +113,13 @@
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>credentials</artifactId>
             <version>2.1.14</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.jenkins-ci.plugins/osf-builder-suite-for-sfcc-credentials -->
+        <dependency>
+            <groupId>org.jenkins-ci.plugins</groupId>
+            <artifactId>osf-builder-suite-for-sfcc-credentials</artifactId>
+            <version>1.0.0</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.jenkins-ci.plugins/token-macro -->
