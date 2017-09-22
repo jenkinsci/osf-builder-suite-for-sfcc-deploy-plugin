@@ -215,7 +215,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
 
         try {
             StandardUsernamePasswordCredentials bmCredentials = null;
-            if (StringUtils.isEmpty(bmCredentialsId)) {
+            if (StringUtils.isNotEmpty(bmCredentialsId)) {
                 bmCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
                         bmCredentialsId,
                         StandardUsernamePasswordCredentials.class,
@@ -228,7 +228,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             }
 
             TwoFactorAuthCredentials tfCredentials = null;
-            if (StringUtils.isEmpty(tfCredentialsId)) {
+            if (StringUtils.isNotEmpty(tfCredentialsId)) {
                 tfCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
                         tfCredentialsId,
                         TwoFactorAuthCredentials.class,
@@ -644,15 +644,15 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     return false;
                 }
 
-                List<MatchPattern> matchPatterns = new ArrayList<>();
-                List<ExcludePattern> excludePatterns = sourcePath.getExcludePatterns();
+                List<ExcludePattern> sourcePatterns = sourcePath.getExcludePatterns();
+                List<MatchPattern> excludePatterns = new ArrayList<>();
 
-                if (excludePatterns != null) {
-                    matchPatterns.addAll(
-                            excludePatterns.stream()
-                                    .filter((p) -> StringUtils.isNotEmpty(p.getExcludePattern()))
-                                    .map((p) -> MatchPattern.fromString("%ant[" + File.separator + p + "]"))
-                                    .collect(Collectors.toList())
+                if (sourcePatterns != null) {
+                    excludePatterns.addAll(sourcePatterns.stream()
+                            .map(ExcludePattern::getExcludePattern)
+                            .filter(StringUtils::isNotEmpty)
+                            .map((p) -> MatchPattern.fromString("%ant[" + File.separator + p + "]"))
+                            .collect(Collectors.toList())
                     );
                 }
 
@@ -668,19 +668,33 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                             return false;
                         }
 
+                        Boolean excludeCartridge = excludePatterns.stream().anyMatch((pattern) -> {
+                            String pathToMatch = File.separator + cartridge.getName() + File.separator;
+                            return pattern.matchPath(pathToMatch, true);
+                        });
+
+                        if (excludeCartridge) {
+                            continue;
+                        }
+
+                        File[] cartridgeFiles = cartridge.listFiles();
+                        if (cartridgeFiles == null || cartridgeFiles.length < 1) {
+                            continue;
+                        }
+
                         logger.println(String.format(" - %s", cartridge.getName()));
 
-                        ZipUtil.pack(cartridge, cartridgeZip, (name) -> {
-                            Boolean skip = matchPatterns.stream().anyMatch((pattern) -> {
-                                String path = File.separator + cartridge.getName() + File.separator + name;
-                                return pattern.matchPath(path, true);
+                        ZipUtil.pack(cartridge, cartridgeZip, (path) -> {
+                            Boolean excludeFile = excludePatterns.stream().anyMatch((pattern) -> {
+                                String pathToMatch = File.separator + cartridge.getName() + File.separator + path;
+                                return pattern.matchPath(pathToMatch, true);
                             });
 
-                            if (skip) {
+                            if (excludeFile) {
                                 return null;
                             }
 
-                            return cartridge.getName() + "/" + name;
+                            return cartridge.getName() + "/" + path;
                         });
 
                         zippedCartridges.add(cartridgeZip);
