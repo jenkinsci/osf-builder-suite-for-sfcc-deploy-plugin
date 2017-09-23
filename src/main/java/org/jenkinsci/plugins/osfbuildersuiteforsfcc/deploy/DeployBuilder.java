@@ -5,14 +5,12 @@ import com.cloudbees.plugins.credentials.common.StandardCredentials;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredentials;
 import com.cloudbees.plugins.credentials.domains.URIRequirementBuilder;
-import hudson.AbortException;
 import hudson.Launcher;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.model.*;
 import hudson.model.queue.Tasks;
 import hudson.security.ACL;
-import hudson.tasks.BuildStep;
 import hudson.tasks.Builder;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.util.ListBoxModel;
@@ -81,7 +79,7 @@ import java.util.stream.Collectors;
 
 
 @SuppressWarnings("unused")
-public class DeployBuilder extends Builder implements BuildStep {
+public class DeployBuilder extends Builder implements SimpleBuildStep {
 
     private String hostname;
     private String bmCredentialsId;
@@ -206,8 +204,8 @@ public class DeployBuilder extends Builder implements BuildStep {
     }
 
     @Override
-    public boolean perform(AbstractBuild<?,?> build, Launcher launcher, BuildListener listener)
-            throws InterruptedException, IOException {
+    public void perform(@Nonnull Run<?, ?> build, @Nonnull FilePath workspace,
+                        @Nonnull Launcher launcher, @Nonnull TaskListener listener) throws IOException {
 
         PrintStream logger = listener.getLogger();
 
@@ -215,74 +213,72 @@ public class DeployBuilder extends Builder implements BuildStep {
         logger.println(String.format("--[B: %s]--", getDescriptor().getDisplayName()));
         logger.println();
 
-        StandardUsernamePasswordCredentials bmCredentials = null;
-        if (StringUtils.isNotEmpty(bmCredentialsId)) {
-            bmCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
-                    bmCredentialsId,
-                    StandardUsernamePasswordCredentials.class,
-                    build, URIRequirementBuilder.create().build()
-            );
-        }
-
-        if (bmCredentials != null) {
-            com.cloudbees.plugins.credentials.CredentialsProvider.track(build, bmCredentials);
-        }
-
-        TwoFactorAuthCredentials tfCredentials = null;
-        if (StringUtils.isNotEmpty(tfCredentialsId)) {
-            tfCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
-                    tfCredentialsId,
-                    TwoFactorAuthCredentials.class,
-                    build, URIRequirementBuilder.create().build()
-            );
-        }
-
-        if (tfCredentials != null) {
-            com.cloudbees.plugins.credentials.CredentialsProvider.track(build, tfCredentials);
-        }
-
-        String expandedBuildVersion;
         try {
-            expandedBuildVersion = TokenMacro.expandAll(build, build.getWorkspace(), listener, buildVersion);
+            StandardUsernamePasswordCredentials bmCredentials = null;
+            if (StringUtils.isNotEmpty(bmCredentialsId)) {
+                bmCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
+                        bmCredentialsId,
+                        StandardUsernamePasswordCredentials.class,
+                        build, URIRequirementBuilder.create().build()
+                );
+            }
+
+            if (bmCredentials != null) {
+                com.cloudbees.plugins.credentials.CredentialsProvider.track(build, bmCredentials);
+            }
+
+            TwoFactorAuthCredentials tfCredentials = null;
+            if (StringUtils.isNotEmpty(tfCredentialsId)) {
+                tfCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
+                        tfCredentialsId,
+                        TwoFactorAuthCredentials.class,
+                        build, URIRequirementBuilder.create().build()
+                );
+            }
+
+            if (tfCredentials != null) {
+                com.cloudbees.plugins.credentials.CredentialsProvider.track(build, tfCredentials);
+            }
+
+            DeployCallable deployCallable = new DeployCallable(
+                    workspace,
+                    listener,
+                    hostname,
+                    bmCredentialsId,
+                    bmCredentials,
+                    tfCredentialsId,
+                    tfCredentials,
+                    TokenMacro.expandAll(build, workspace, listener, buildVersion),
+                    getBuildCause(build),
+                    build.getNumber(),
+                    createBuildInfoCartridge,
+                    activateBuild,
+                    sourcePaths,
+                    tempDirectory,
+                    getDescriptor().getHttpProxyHost(),
+                    getDescriptor().getHttpProxyPort(),
+                    getDescriptor().getHttpProxyUsername(),
+                    getDescriptor().getHttpProxyPassword(),
+                    getDescriptor().getDisableSSLValidation()
+            );
+
+            if (!launcher.getChannel().call(deployCallable)) {
+                build.setResult(Result.FAILURE);
+            }
         } catch (MacroEvaluationException e) {
             logger.println();
             logger.println("ERROR: Exception thrown while expanding build version!");
             e.printStackTrace(logger);
             logger.println();
-            return false;
-        }
 
-        DeployCallable deployCallable = new DeployCallable(
-                build.getWorkspace(),
-                listener,
-                hostname,
-                bmCredentialsId,
-                bmCredentials,
-                tfCredentialsId,
-                tfCredentials,
-                expandedBuildVersion,
-                getBuildCause(build),
-                build.getNumber(),
-                createBuildInfoCartridge,
-                activateBuild,
-                sourcePaths,
-                tempDirectory,
-                getDescriptor().getHttpProxyHost(),
-                getDescriptor().getHttpProxyPort(),
-                getDescriptor().getHttpProxyUsername(),
-                getDescriptor().getHttpProxyPassword(),
-                getDescriptor().getDisableSSLValidation()
-        );
-
-        if (!launcher.getChannel().call(deployCallable)) {
-            return false;
+            build.setResult(Result.FAILURE);
+        } catch (InterruptedException e) {
+            build.setResult(Result.ABORTED);
         }
 
         logger.println();
         logger.println(String.format("--[E: %s]--", getDescriptor().getDisplayName()));
         logger.println();
-
-        return true;
     }
 
     @Override
