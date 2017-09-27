@@ -20,6 +20,7 @@ import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.commons.text.StringEscapeUtils;
 import org.apache.http.*;
 import org.apache.http.Header;
@@ -824,7 +825,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
 
             /* Setup HTTP Client */
             HttpClientBuilder httpClientBuilder = HttpClients.custom();
-            httpClientBuilder.setUserAgent("Jenkins (OSF Builder Suite For Salesforce Commerce Cloud :: Deploy)");
+            httpClientBuilder.setUserAgent("Jenkins (OSF Builder Suite For Salesforce Commerce Cloud)");
             httpClientBuilder.setDefaultCookieStore(new BasicCookieStore());
 
             httpClientBuilder.addInterceptorFirst((HttpRequestInterceptor) (request, context) -> {
@@ -1218,7 +1219,12 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 chHttpResponse = httpClient.execute(chRequestBuilder.build());
             } catch (IOException e) {
                 logger.println();
-                AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                AbortException abortException = new AbortException(
+                        String.format(
+                                "Exception thrown while making HTTP request!\nStackTrace=%s",
+                                ExceptionUtils.getStackTrace(e)
+                        )
+                );
                 abortException.initCause(e);
                 throw abortException;
             }
@@ -1227,7 +1233,12 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 chHttpResponse.close();
             } catch (IOException e) {
                 logger.println();
-                AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                AbortException abortException = new AbortException(
+                        String.format(
+                                "Exception thrown while making HTTP request!\nStackTrace=%s",
+                                ExceptionUtils.getStackTrace(e)
+                        )
+                );
                 abortException.initCause(e);
                 throw abortException;
             }
