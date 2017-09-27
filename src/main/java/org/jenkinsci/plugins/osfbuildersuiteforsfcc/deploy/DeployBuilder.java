@@ -251,7 +251,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             throw abortException;
         }
 
-        DeployCallable deployCallable = new DeployCallable(
+        launcher.getChannel().call(new DeployCallable(
                 workspace,
                 listener,
                 hostname,
@@ -271,11 +271,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 getDescriptor().getHttpProxyUsername(),
                 getDescriptor().getHttpProxyPassword(),
                 getDescriptor().getDisableSSLValidation()
-        );
-
-        if (!launcher.getChannel().call(deployCallable)) {
-            build.setResult(Result.FAILURE);
-        }
+        ));
 
         logger.println();
         logger.println(String.format("--[E: %s]--", getDescriptor().getDisplayName()));
@@ -410,7 +406,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
     }
 
-    private static class DeployCallable extends MasterToSlaveCallable<Boolean, InterruptedException> {
+    private static class DeployCallable extends MasterToSlaveCallable<Void, IOException> {
 
         private static final long serialVersionUID = 1L;
 
@@ -435,12 +431,24 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         private final Boolean disableSSLValidation;
 
         @SuppressWarnings("WeakerAccess")
-        public DeployCallable(FilePath workspace, TaskListener listener, String hostname, String bmCredentialsId,
-                              StandardUsernamePasswordCredentials bmCredentials, String tfCredentialsId,
-                              TwoFactorAuthCredentials tfCredentials, String buildVersion, String buildCause,
-                              Integer buildNumber, Boolean createBuildInfoCartridge, Boolean activateBuild,
-                              List<SourcePath> sourcePaths, String tempDirectory, String httpProxyHost,
-                              String httpProxyPort, String httpProxyUsername, String httpProxyPassword,
+        public DeployCallable(FilePath workspace,
+                              TaskListener listener,
+                              String hostname,
+                              String bmCredentialsId,
+                              StandardUsernamePasswordCredentials bmCredentials,
+                              String tfCredentialsId,
+                              TwoFactorAuthCredentials tfCredentials,
+                              String buildVersion,
+                              String buildCause,
+                              Integer buildNumber,
+                              Boolean createBuildInfoCartridge,
+                              Boolean activateBuild,
+                              List<SourcePath> sourcePaths,
+                              String tempDirectory,
+                              String httpProxyHost,
+                              String httpProxyPort,
+                              String httpProxyUsername,
+                              String httpProxyPassword,
                               Boolean disableSSLValidation) {
 
             this.workspace = workspace;
@@ -465,67 +473,67 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
 
         @Override
-        public Boolean call() throws InterruptedException {
+        public Void call() throws IOException {
             PrintStream logger = listener.getLogger();
 
             if (StringUtils.isEmpty(hostname)) {
                 logger.println();
-                logger.println("ERROR: Missing value for \"Instance Hostname\"!");
-                logger.println("ERROR: How can we make a build without a target where to deploy it?");
-                logger.println();
-                return false;
+                throw new AbortException(
+                        "Missing value for \"Instance Hostname\"!" + " " +
+                                "How can we make a build without a target where to deploy it?"
+                );
             }
 
             if (StringUtils.isEmpty(bmCredentialsId)) {
                 logger.println();
-                logger.println("ERROR: Missing \"Business Manager Credentials\"!");
-                logger.println("ERROR: We can't deploy the build without proper credentials, can't we?");
-                logger.println();
-                return false;
+                throw new AbortException(
+                        "Missing \"Business Manager Credentials\"!" + " " +
+                                "We can't deploy the build without proper credentials, can't we?"
+                );
             }
 
             if (bmCredentials == null) {
                 logger.println();
-                logger.println("ERROR: Failed to load \"Business Manager Credentials\"!");
-                logger.println("ERROR: Something's wrong but not sure who's blame is it...");
-                logger.println();
-                return false;
+                throw new AbortException(
+                        "Failed to load \"Business Manager Credentials\"!" + " " +
+                                "Something's wrong but not sure who's blame it is..."
+                );
             }
 
             if (StringUtils.isNotEmpty(tfCredentialsId)) {
                 if (tfCredentials == null) {
                     logger.println();
-                    logger.println("ERROR: Failed to load \"Two Factor Auth Credentials\"!");
-                    logger.println("ERROR: Something's wrong but not sure who's blame is it...");
-                    logger.println();
-                    return false;
+                    throw new AbortException(
+                            "Failed to load \"Two Factor Auth Credentials\"!" + " " +
+                                    "Something's wrong but not sure who's blame it is..."
+                    );
                 } else if (StringUtils.isEmpty(StringUtils.trim(tfCredentials.getServerCertificate()))) {
                     logger.println();
-                    logger.println("ERROR: Failed to load \"Two Factor Auth Credentials\"!");
-                    logger.println("ERROR: Missing value for \"Server Certificate\"!");
-                    logger.println();
-                    return false;
+                    throw new AbortException(
+                            "Failed to load \"Two Factor Auth Credentials\"!" + " " +
+                                    "Missing value for \"Server Certificate\"!"
+                    );
                 } else if (StringUtils.isEmpty(StringUtils.trim(tfCredentials.getClientCertificate()))) {
                     logger.println();
-                    logger.println("ERROR: Failed to load \"Two Factor Auth Credentials\"!");
-                    logger.println("ERROR: Missing value for \"Client Certificate\"!");
-                    logger.println();
-                    return false;
+                    throw new AbortException(
+                            "Failed to load \"Two Factor Auth Credentials\"!" + " " +
+                                    "Missing value for \"Client Certificate\"!"
+                    );
                 } else if (StringUtils.isEmpty(StringUtils.trim(tfCredentials.getClientPrivateKey()))) {
                     logger.println();
-                    logger.println("ERROR: Failed to load \"Two Factor Auth Credentials\"!");
-                    logger.println("ERROR: Missing value for \"Client Private Key\"!");
-                    logger.println();
-                    return false;
+                    throw new AbortException(
+                            "Failed to load \"Two Factor Auth Credentials\"!" + " " +
+                                    "Missing value for \"Client Private Key\"!"
+                    );
                 }
             }
 
             if (StringUtils.isEmpty(buildVersion)) {
                 logger.println();
-                logger.println("ERROR: Missing \"Build Version\"!");
-                logger.println("ERROR: We need a version name for the build we're about to do!");
-                logger.println();
-                return false;
+                throw new AbortException(
+                        "Missing \"Build Version\"!" + " " +
+                                "We need a version name for the build we're about to do!"
+                );
             }
 
             Pattern validationBuildVersionPattern = Pattern.compile("^[a-z0-9_.]+$", Pattern.CASE_INSENSITIVE);
@@ -533,26 +541,26 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
 
             if (!validationBuildVersionMatcher.matches()) {
                 logger.println();
-                logger.println(String.format("ERROR: Invalid value \"%s\" for build version!", buildVersion));
-                logger.println("ERROR: Only alphanumeric, \"_\" and \".\" characters are allowed.");
-                logger.println();
-                return false;
+                throw new AbortException(
+                        String.format("Invalid value \"%s\" for build version!", buildVersion) + " " +
+                                "Only alphanumeric, \"_\" and \".\" characters are allowed."
+                );
             }
 
             if (sourcePaths == null || sourcePaths.isEmpty()) {
                 logger.println();
-                logger.println("ERROR: No \"Sources\" defined!");
-                logger.println("ERROR: We don't want to have an empty build, do we?");
-                logger.println();
-                return false;
+                throw new AbortException(
+                        "No \"Sources\" defined!" + " " +
+                                "We don't want to have an empty build, do we?"
+                );
             }
 
             if (StringUtils.isEmpty(tempDirectory)) {
                 logger.println();
-                logger.println("ERROR: Missing \"Temp Build Directory\"!");
-                logger.println("ERROR: We need a temporary place to store the build before we can deploy it!");
-                logger.println();
-                return false;
+                throw new AbortException(
+                        "Missing \"Temp Build Directory\"!" + " " +
+                                "We need a temporary place to store the build before we can deploy it!"
+                );
             }
 
             SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyyMMdd", Locale.ENGLISH);
@@ -569,19 +577,20 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
 
             if (!tDirectoryPath.startsWith(wDirectoryPath)) {
                 logger.println();
-                logger.println("ERROR: Invalid value for \"Temp Build Directory\"!");
-                logger.println("ERROR: The path needs to be inside the workspace!");
-                logger.println();
-                return false;
+                throw new AbortException(
+                        "Invalid value for \"Temp Build Directory\"!" + " " +
+                                "The path needs to be inside the workspace!"
+                );
             }
+
 
             /* Setting up temporary build directory */
             logger.println("[+] Setting up temporary build directory");
 
             if (!tDirectory.exists()) {
                 if (!tDirectory.mkdirs()) {
-                    logger.println(String.format("ERROR: Failed to create %s!", tDirectory.getAbsolutePath()));
-                    return false;
+                    logger.println();
+                    throw new AbortException(String.format("Failed to create %s!", tDirectory.getAbsolutePath()));
                 }
             }
 
@@ -593,23 +602,18 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                             FileUtils.deleteDirectory(tDirectoryFile);
                         } catch (IOException e) {
                             logger.println();
-                            logger.println(String.format(
-                                    "ERROR: Exception thrown while deleting \"%s\"!",
-                                    tDirectoryFile.getAbsolutePath()
+                            AbortException abortException = new AbortException(String.format(
+                                    "Exception thrown while deleting \"%s\"!", tDirectoryFile.getAbsolutePath()
                             ));
-                            e.printStackTrace(logger);
-                            logger.println();
-                            return false;
+                            abortException.initCause(e);
+                            throw abortException;
                         }
                     } else {
                         if (!tDirectoryFile.delete()) {
                             logger.println();
-                            logger.println(String.format(
-                                    "ERROR: Failed to delete \"%s\"!",
-                                    tDirectoryFile.getAbsolutePath()
+                            throw new AbortException(String.format(
+                                    "Failed to delete \"%s\"!", tDirectoryFile.getAbsolutePath()
                             ));
-                            logger.println();
-                            return false;
                         }
                     }
                 }
@@ -631,18 +635,18 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
 
                 if (!pSourcePath.startsWith(wDirectoryPath)) {
                     logger.println();
-                    logger.println("ERROR: Invalid value for \"Source Paths\"!");
-                    logger.println("ERROR: The path needs to be inside the workspace!");
-                    logger.println();
-                    return false;
+                    throw new AbortException(
+                            "Invalid value for \"Source Paths\"!" + " " +
+                                    "The path needs to be inside the workspace!"
+                    );
                 }
 
                 if (!fSourcePath.exists()) {
                     logger.println();
-                    logger.println("ERROR: Invalid value for \"Source Paths\"!");
-                    logger.println(String.format("ERROR: \"%s\" does not exist!", sourcePath.getSourcePath()));
-                    logger.println();
-                    return false;
+                    throw new AbortException(
+                            "Invalid value for \"Source Paths\"!" + " " +
+                                    String.format("\"%s\" does not exist!", sourcePath.getSourcePath())
+                    );
                 }
 
                 List<ExcludePattern> sourcePatterns = sourcePath.getExcludePatterns();
@@ -663,10 +667,10 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                         File cartridgeZip = new File(tDirectory, String.format("%s.zip", cartridge.getName()));
                         if (cartridgeZip.exists()) {
                             logger.println();
-                            logger.println("ERROR: Failed to ZIP cartridge!");
-                            logger.println(String.format("ERROR: \"%s\" already exists!", cartridge.getName()));
-                            logger.println();
-                            return false;
+                            throw new AbortException(
+                                    "Failed to ZIP cartridge!" + " " +
+                                            String.format("\"%s\" already exists!", cartridge.getName())
+                            );
                         }
 
                         Boolean excludeCartridge = excludePatterns.stream().anyMatch((pattern) -> {
@@ -707,10 +711,10 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 File cartridgeZip = new File(tDirectory, "inf_build.zip");
                 if (cartridgeZip.exists()) {
                     logger.println();
-                    logger.println("ERROR: Failed to ZIP cartridge!");
-                    logger.println("ERROR: \"inf_build\" already exists!");
-                    logger.println();
-                    return false;
+                    throw new AbortException(
+                            "Failed to ZIP cartridge!" + " " +
+                                    "\"inf_build\" already exists!"
+                    );
                 }
 
                 logger.println(" - inf_build");
@@ -867,18 +871,18 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     httpProxyPortInteger = Integer.valueOf(httpProxyPort);
                 } catch (NumberFormatException e) {
                     logger.println();
-                    logger.println(String.format("ERROR: Invalid value \"%s\" for HTTP proxy port!", httpProxyPort));
-                    logger.println("ERROR: Please enter a number grater than 0.");
-                    logger.println();
-                    return false;
+                    throw new AbortException(
+                            String.format("Invalid value \"%s\" for HTTP proxy port!", httpProxyPort) + " " +
+                                    "Please enter a valid port number."
+                    );
                 }
 
                 if (httpProxyPortInteger <= 0) {
                     logger.println();
-                    logger.println(String.format("ERROR: Invalid value \"%s\" for HTTP proxy port!", httpProxyPort));
-                    logger.println("ERROR: Please enter a number grater than 0.");
-                    logger.println();
-                    return false;
+                    throw new AbortException(
+                            String.format("Invalid value \"%s\" for HTTP proxy port!", httpProxyPort) + " " +
+                                    "Please enter a valid port number."
+                    );
                 }
 
                 HttpHost httpClientProxy = new HttpHost(httpProxyHost, httpProxyPortInteger);
@@ -932,24 +936,29 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     );
                 } catch (CertificateException | IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while loading two factor auth server certificate!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while loading two factor auth server certificate!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 try {
                     serverCertificate.checkValidity();
                 } catch (CertificateExpiredException e) {
                     logger.println();
-                    logger.println("ERROR: The server certificate used for two factor auth is expired!");
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "The server certificate used for two factor auth is expired!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 } catch (CertificateNotYetValidException e) {
                     logger.println();
-                    logger.println("ERROR: The server certificate used for two factor auth is not yet valid!");
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "The server certificate used for two factor auth is not yet valid!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 // Client Certificate
@@ -967,24 +976,29 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     );
                 } catch (CertificateException | IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while loading two factor auth client certificate!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while loading two factor auth client certificate!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 try {
                     clientCertificate.checkValidity();
                 } catch (CertificateExpiredException e) {
                     logger.println();
-                    logger.println("ERROR: The client certificate used for two factor auth is expired!");
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "The client certificate used for two factor auth is expired!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 } catch (CertificateNotYetValidException e) {
                     logger.println();
-                    logger.println("ERROR: The client certificate used for two factor auth is not yet valid!");
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "The client certificate used for two factor auth is not yet valid!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 // Client Private Key
@@ -997,10 +1011,11 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     clientPrivateKeyObject = clientPrivateKeyParser.readObject();
                 } catch (IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while loading two factor auth client private key!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while loading two factor auth client private key!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 PrivateKeyInfo clientPrivateKeyInfo;
@@ -1011,9 +1026,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     clientPrivateKeyInfo = ((PEMKeyPair) clientPrivateKeyObject).getPrivateKeyInfo();
                 } else {
                     logger.println();
-                    logger.println("ERROR: Failed to load two factor auth client private key!");
-                    logger.println();
-                    return false;
+                    throw new AbortException("Failed to load two factor auth client private key!");
                 }
 
                 // Trust Store
@@ -1023,40 +1036,44 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     customTrustStore = KeyStore.getInstance(KeyStore.getDefaultType());
                 } catch (KeyStoreException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while setting up the custom trust store!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while setting up the custom trust store!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 try {
                     customTrustStore.load(null, null);
                 } catch (IOException | NoSuchAlgorithmException | CertificateException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while setting up the custom trust store!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while setting up the custom trust store!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 try {
                     customTrustStore.setCertificateEntry(hostname, serverCertificate);
                 } catch (KeyStoreException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while setting up the custom trust store!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while setting up the custom trust store!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 try {
                     sslContextBuilder.loadTrustMaterial(customTrustStore, null);
                 } catch (NoSuchAlgorithmException | KeyStoreException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while setting up the custom trust store!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while setting up the custom trust store!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 // Key Store
@@ -1066,10 +1083,11 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     customKeyStoreKeyFactory = KeyFactory.getInstance("RSA");
                 } catch (NoSuchAlgorithmException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while setting up the custom key store!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while setting up the custom key store!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 PrivateKey customKeyStorePrivateKey;
@@ -1080,10 +1098,11 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     );
                 } catch (InvalidKeySpecException | IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while setting up the custom key store!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while setting up the custom key store!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 KeyStore customKeyStore;
@@ -1092,20 +1111,22 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     customKeyStore = KeyStore.getInstance(KeyStore.getDefaultType());
                 } catch (KeyStoreException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while setting up the custom key store!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while setting up the custom key store!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 try {
                     customKeyStore.load(null, null);
                 } catch (IOException | NoSuchAlgorithmException | CertificateException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while setting up the custom key store!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while setting up the custom key store!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 char[] keyStorePassword = bmCredentialsPassword.toCharArray();
@@ -1117,20 +1138,22 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     );
                 } catch (KeyStoreException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while setting up the custom key store!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while setting up the custom key store!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 try {
                     sslContextBuilder.loadKeyMaterial(customKeyStore, keyStorePassword);
                 } catch (NoSuchAlgorithmException | KeyStoreException | UnrecoverableKeyException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while setting up the custom key store!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while setting up the custom key store!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
             }
 
@@ -1139,10 +1162,11 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     sslContextBuilder.loadTrustMaterial(null, (TrustStrategy) (arg0, arg1) -> true);
                 } catch (NoSuchAlgorithmException | KeyStoreException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while setting up the custom trust store!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException(
+                            "Exception thrown while setting up the custom key store!"
+                    );
+                    abortException.initCause(e);
+                    throw abortException;
                 }
             }
 
@@ -1152,10 +1176,11 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 customSSLContext = sslContextBuilder.build();
             } catch (NoSuchAlgorithmException | KeyManagementException e) {
                 logger.println();
-                logger.println("ERROR: Exception thrown while creating custom SSL context!");
-                e.printStackTrace(logger);
-                logger.println();
-                return false;
+                AbortException abortException = new AbortException(
+                        "Exception thrown while creating custom SSL context!"
+                );
+                abortException.initCause(e);
+                throw abortException;
             }
 
             if (disableSSLValidation != null && disableSSLValidation) {
@@ -1193,20 +1218,18 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 chHttpResponse = httpClient.execute(chRequestBuilder.build());
             } catch (IOException e) {
                 logger.println();
-                logger.println("ERROR: Exception thrown while making HTTP request!");
-                e.printStackTrace(logger);
-                logger.println();
-                return false;
+                AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                abortException.initCause(e);
+                throw abortException;
             }
 
             try {
                 chHttpResponse.close();
             } catch (IOException e) {
                 logger.println();
-                logger.println("ERROR: Exception thrown while making HTTP request!");
-                e.printStackTrace(logger);
-                logger.println();
-                return false;
+                AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                abortException.initCause(e);
+                throw abortException;
             }
 
             StatusLine chHttpStatusLine = chHttpResponse.getStatusLine();
@@ -1214,25 +1237,15 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             if (chHttpStatusLine.getStatusCode() != HttpStatus.SC_NOT_FOUND) {
                 if (chHttpStatusLine.getStatusCode() == HttpStatus.SC_UNAUTHORIZED) {
                     logger.println();
-                    logger.println("ERROR: Invalid username or password!");
+                    throw new AbortException("Invalid username or password!");
+                } else if (chHttpStatusLine.getStatusCode() == HttpStatus.SC_OK) {
                     logger.println();
-                    return false;
-                }
-                else if (chHttpStatusLine.getStatusCode() == HttpStatus.SC_OK) {
+                    throw new AbortException("Code version already exists on the server!");
+                } else {
                     logger.println();
-                    logger.println("ERROR: Code version already exists on the server!");
-                    logger.println();
-                    return false;
-                }
-                else {
-                    logger.println();
-                    logger.println(String.format(
-                            "ERROR: %s - %s!",
-                            chHttpStatusLine.getStatusCode(),
-                            chHttpStatusLine.getReasonPhrase()
+                    throw new AbortException(String.format(
+                            "%s - %s!", chHttpStatusLine.getStatusCode(), chHttpStatusLine.getReasonPhrase()
                     ));
-                    logger.println();
-                    return false;
                 }
             }
 
@@ -1257,20 +1270,18 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 crHttpResponse = httpClient.execute(crRequestBuilder.build());
             } catch (IOException e) {
                 logger.println();
-                logger.println("ERROR: Exception thrown while making HTTP request!");
-                e.printStackTrace(logger);
-                logger.println();
-                return false;
+                AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                abortException.initCause(e);
+                throw abortException;
             }
 
             try {
                 crHttpResponse.close();
             } catch (IOException e) {
                 logger.println();
-                logger.println("ERROR: Exception thrown while making HTTP request!");
-                e.printStackTrace(logger);
-                logger.println();
-                return false;
+                AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                abortException.initCause(e);
+                throw abortException;
             }
 
             StatusLine crHttpStatusLine = crHttpResponse.getStatusLine();
@@ -1278,19 +1289,12 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             if (crHttpStatusLine.getStatusCode() != HttpStatus.SC_CREATED) {
                 if (crHttpStatusLine.getStatusCode() == HttpStatus.SC_UNAUTHORIZED) {
                     logger.println();
-                    logger.println("ERROR: Invalid username or password!");
+                    throw new AbortException("Invalid username or password!");
+                } else {
                     logger.println();
-                    return false;
-                }
-                else {
-                    logger.println();
-                    logger.println(String.format(
-                            "ERROR: %s - %s!",
-                            crHttpStatusLine.getStatusCode(),
-                            crHttpStatusLine.getReasonPhrase()
+                    throw new AbortException(String.format(
+                            "%s - %s!", crHttpStatusLine.getStatusCode(), crHttpStatusLine.getReasonPhrase()
                     ));
-                    logger.println();
-                    return false;
                 }
             }
 
@@ -1308,9 +1312,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
 
                 if (!zippedCartridge.exists()) {
                     logger.println();
-                    logger.println(String.format("ERROR: \"%s\" does not exist!", zippedCartridgeName));
-                    logger.println();
-                    return false;
+                    throw new AbortException(String.format("\"%s\" does not exist!", zippedCartridgeName));
                 }
 
                 RequestBuilder upRequestBuilder = RequestBuilder.create("PUT");
@@ -1326,20 +1328,18 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     upHttpResponse = httpClient.execute(upRequestBuilder.build());
                 } catch (IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while making HTTP request!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 try {
                     upHttpResponse.close();
                 } catch (IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while making HTTP request!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 StatusLine upHttpStatusLine = upHttpResponse.getStatusLine();
@@ -1347,19 +1347,12 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 if (upHttpStatusLine.getStatusCode() != HttpStatus.SC_CREATED) {
                     if (upHttpStatusLine.getStatusCode() == HttpStatus.SC_UNAUTHORIZED) {
                         logger.println();
-                        logger.println("ERROR: Invalid username or password!");
+                        throw new AbortException("Invalid username or password!");
+                    } else {
                         logger.println();
-                        return false;
-                    }
-                    else {
-                        logger.println();
-                        logger.println(String.format(
-                                "ERROR: %s - %s!",
-                                upHttpStatusLine.getStatusCode(),
-                                upHttpStatusLine.getReasonPhrase()
+                        throw new AbortException(String.format(
+                                "%s - %s!", upHttpStatusLine.getStatusCode(), upHttpStatusLine.getReasonPhrase()
                         ));
-                        logger.println();
-                        return false;
                     }
                 }
 
@@ -1379,20 +1372,18 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     exHttpResponse = httpClient.execute(exRequestBuilder.build());
                 } catch (IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while making HTTP request!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 try {
                     exHttpResponse.close();
                 } catch (IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while making HTTP request!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 StatusLine exHttpStatusLine = exHttpResponse.getStatusLine();
@@ -1400,19 +1391,12 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 if (exHttpStatusLine.getStatusCode() != HttpStatus.SC_CREATED) {
                     if (exHttpStatusLine.getStatusCode() == HttpStatus.SC_UNAUTHORIZED) {
                         logger.println();
-                        logger.println("ERROR: Invalid username or password!");
+                        throw new AbortException("Invalid username or password!");
+                    } else {
                         logger.println();
-                        return false;
-                    }
-                    else {
-                        logger.println();
-                        logger.println(String.format(
-                                "ERROR: %s - %s!",
-                                exHttpStatusLine.getStatusCode(),
-                                exHttpStatusLine.getReasonPhrase()
+                        throw new AbortException(String.format(
+                                "%s - %s!", exHttpStatusLine.getStatusCode(), exHttpStatusLine.getReasonPhrase()
                         ));
-                        logger.println();
-                        return false;
                     }
                 }
 
@@ -1428,20 +1412,18 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     rmHttpResponse = httpClient.execute(rmRequestBuilder.build());
                 } catch (IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while making HTTP request!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 try {
                     rmHttpResponse.close();
                 } catch (IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while making HTTP request!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 StatusLine rmHttpStatusLine = rmHttpResponse.getStatusLine();
@@ -1449,19 +1431,12 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 if (rmHttpStatusLine.getStatusCode() != HttpStatus.SC_NO_CONTENT) {
                     if (rmHttpStatusLine.getStatusCode() == HttpStatus.SC_UNAUTHORIZED) {
                         logger.println();
-                        logger.println("ERROR: Invalid username or password!");
+                        throw new AbortException("Invalid username or password!");
+                    } else {
                         logger.println();
-                        return false;
-                    }
-                    else {
-                        logger.println();
-                        logger.println(String.format(
-                                "ERROR: %s - %s!",
-                                rmHttpStatusLine.getStatusCode(),
-                                rmHttpStatusLine.getReasonPhrase()
+                        throw new AbortException(String.format(
+                                "%s - %s!", rmHttpStatusLine.getStatusCode(), rmHttpStatusLine.getReasonPhrase()
                         ));
-                        logger.println();
-                        return false;
                     }
                 }
             }
@@ -1494,10 +1469,9 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     lgHttpResponse = httpClient.execute(lgRequestBuilder.build());
                 } catch (IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while making HTTP request!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 EntityUtils.consumeQuietly(lgHttpResponse.getEntity());
@@ -1506,10 +1480,9 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     lgHttpResponse.close();
                 } catch (IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while making HTTP request!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 StatusLine lgHttpStatusLine = lgHttpResponse.getStatusLine();
@@ -1525,10 +1498,11 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                         lrHttpResponse = httpClient.execute(lrRequestBuilder.build());
                     } catch (IOException e) {
                         logger.println();
-                        logger.println("ERROR: Exception thrown while making HTTP request!");
-                        e.printStackTrace(logger);
-                        logger.println();
-                        return false;
+                        AbortException abortException = new AbortException(
+                                "Exception thrown while making HTTP request!"
+                        );
+                        abortException.initCause(e);
+                        throw abortException;
                     }
 
                     EntityUtils.consumeQuietly(lrHttpResponse.getEntity());
@@ -1537,10 +1511,11 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                         lrHttpResponse.close();
                     } catch (IOException e) {
                         logger.println();
-                        logger.println("ERROR: Exception thrown while making HTTP request!");
-                        e.printStackTrace(logger);
-                        logger.println();
-                        return false;
+                        AbortException abortException = new AbortException(
+                                "Exception thrown while making HTTP request!"
+                        );
+                        abortException.initCause(e);
+                        throw abortException;
                     }
                 }
 
@@ -1556,10 +1531,9 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     acHttpResponse = httpClient.execute(acRequestBuilder.build());
                 } catch (IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while making HTTP request!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 HttpEntity acHttpEntity = acHttpResponse.getEntity();
@@ -1567,13 +1541,11 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
 
                 if (acHttpEntity == null) {
                     logger.println();
-                    logger.println(String.format(
-                            "ERROR: Failed to activate code version! %s - %s.",
+                    throw new AbortException(String.format(
+                            "Failed to activate code version! %s - %s!",
                             acHttpStatusLine.getStatusCode(),
                             acHttpStatusLine.getReasonPhrase()
                     ));
-                    logger.println();
-                    return false;
                 }
 
                 String acHttpEntityString;
@@ -1582,46 +1554,39 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     acHttpEntityString = EntityUtils.toString(acHttpEntity, "UTF-8");
                 } catch (IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while making HTTP request!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 if (acHttpStatusLine.getStatusCode() != HttpStatus.SC_OK) {
                     logger.println();
-                    logger.println(String.format(
-                            "ERROR: Failed to activate code version! %s - %s.",
+                    throw new AbortException(String.format(
+                            "Failed to activate code version! %s - %s!",
                             acHttpStatusLine.getStatusCode(),
                             acHttpStatusLine.getReasonPhrase()
                     ));
-                    logger.println(acHttpEntityString);
-                    logger.println();
-                    return false;
                 }
 
                 try {
                     acHttpResponse.close();
                 } catch (IOException e) {
                     logger.println();
-                    logger.println("ERROR: Exception thrown while making HTTP request!");
-                    e.printStackTrace(logger);
-                    logger.println();
-                    return false;
+                    AbortException abortException = new AbortException("Exception thrown while making HTTP request!");
+                    abortException.initCause(e);
+                    throw abortException;
                 }
 
                 String acSuccessMessage = String.format("Successfully activated version '%s'", codeVersionString);
 
                 if (!acHttpEntityString.contains(acSuccessMessage)) {
                     logger.println();
-                    logger.println(String.format(
-                            "ERROR: Failed to activate code version! %s - %s.",
+                    throw new AbortException(String.format(
+                            "Failed to activate code version! %s - %s! HttpEntity=%s",
                             acHttpStatusLine.getStatusCode(),
-                            acHttpStatusLine.getReasonPhrase()
+                            acHttpStatusLine.getReasonPhrase(),
+                            acHttpEntityString
                     ));
-                    logger.println(acHttpEntityString);
-                    logger.println();
-                    return false;
                 }
 
                 logger.println(" + Ok");
@@ -1634,15 +1599,14 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 httpClient.close();
             } catch (IOException e) {
                 logger.println();
-                logger.println("ERROR: Exception thrown while closing HTTP client!");
-                e.printStackTrace(logger);
-                logger.println();
-                return false;
+                AbortException abortException = new AbortException("Exception thrown while closing HTTP client!");
+                abortException.initCause(e);
+                throw abortException;
             }
             /* Close HTTP Client */
 
 
-            return true;
+            return null;
         }
     }
 }
