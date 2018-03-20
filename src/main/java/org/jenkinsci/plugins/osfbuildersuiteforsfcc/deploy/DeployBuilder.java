@@ -3,7 +3,6 @@ package org.jenkinsci.plugins.osfbuildersuiteforsfcc.deploy;
 import com.cloudbees.plugins.credentials.CredentialsMatchers;
 import com.cloudbees.plugins.credentials.common.StandardCredentials;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
-import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredentials;
 import com.cloudbees.plugins.credentials.domains.URIRequirementBuilder;
 import hudson.AbortException;
 import hudson.Launcher;
@@ -11,14 +10,12 @@ import hudson.Extension;
 import hudson.FilePath;
 import hudson.model.*;
 import hudson.model.queue.Tasks;
-import hudson.remoting.Callable;
 import hudson.remoting.VirtualChannel;
 import hudson.security.ACL;
 import hudson.tasks.Builder;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.util.ListBoxModel;
 import jenkins.MasterToSlaveFileCallable;
-import jenkins.security.MasterToSlaveCallable;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
 import org.apache.commons.io.FileUtils;
@@ -54,6 +51,7 @@ import org.bouncycastle.openssl.PEMParser;
 import org.codehaus.plexus.util.MatchPattern;
 import org.jenkinsci.Symbol;
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.TwoFactorAuthCredentials;
+import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.BusinessManagerAuthCredentials;
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.deploy.repeatable.ExcludePattern;
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.deploy.repeatable.SourcePath;
 import org.jenkinsci.plugins.tokenmacro.MacroEvaluationException;
@@ -229,11 +227,11 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             throw abortException;
         }
 
-        StandardUsernamePasswordCredentials bmCredentials = null;
+        BusinessManagerAuthCredentials bmCredentials = null;
         if (StringUtils.isNotEmpty(bmCredentialsId)) {
             bmCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
                     bmCredentialsId,
-                    StandardUsernamePasswordCredentials.class,
+                    BusinessManagerAuthCredentials.class,
                     build, URIRequirementBuilder.create().build()
             );
         }
@@ -331,7 +329,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     context,
                     StandardCredentials.class,
                     URIRequirementBuilder.create().build(),
-                    CredentialsMatchers.instanceOf(StandardUsernamePasswordCredentials.class)
+                    CredentialsMatchers.instanceOf(BusinessManagerAuthCredentials.class)
             );
         }
 
@@ -425,7 +423,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         private final TaskListener listener;
         private final String hostname;
         private final String bmCredentialsId;
-        private final StandardUsernamePasswordCredentials bmCredentials;
+        private final BusinessManagerAuthCredentials bmCredentials;
         private final String tfCredentialsId;
         private final TwoFactorAuthCredentials tfCredentials;
         private final String buildVersion;
@@ -445,7 +443,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         public DeployCallable(TaskListener listener,
                               String hostname,
                               String bmCredentialsId,
-                              StandardUsernamePasswordCredentials bmCredentials,
+                              BusinessManagerAuthCredentials bmCredentials,
                               String tfCredentialsId,
                               TwoFactorAuthCredentials tfCredentials,
                               String buildVersion,
