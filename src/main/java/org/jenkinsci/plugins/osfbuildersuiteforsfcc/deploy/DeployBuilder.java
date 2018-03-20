@@ -11,10 +11,13 @@ import hudson.Extension;
 import hudson.FilePath;
 import hudson.model.*;
 import hudson.model.queue.Tasks;
+import hudson.remoting.Callable;
+import hudson.remoting.VirtualChannel;
 import hudson.security.ACL;
 import hudson.tasks.Builder;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.util.ListBoxModel;
+import jenkins.MasterToSlaveFileCallable;
 import jenkins.security.MasterToSlaveCallable;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
@@ -206,7 +209,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
     }
 
     @Override
-    public void perform(@Nonnull Run build,
+    public void perform(@Nonnull Run<?, ?> build,
                         @Nonnull FilePath workspace,
                         @Nonnull Launcher launcher,
                         @Nonnull TaskListener listener) throws InterruptedException, IOException {
@@ -261,8 +264,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             throw abortException;
         }
 
-        launcher.getChannel().call(new DeployCallable(
-                workspace,
+        workspace.act(new DeployCallable(
                 listener,
                 expandedHostname,
                 bmCredentialsId,
@@ -416,11 +418,10 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
     }
 
-    private static class DeployCallable extends MasterToSlaveCallable<Void, IOException> {
+    private static class DeployCallable extends MasterToSlaveFileCallable<Void> {
 
         private static final long serialVersionUID = 1L;
 
-        private final FilePath workspace;
         private final TaskListener listener;
         private final String hostname;
         private final String bmCredentialsId;
@@ -441,8 +442,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         private final Boolean disableSSLValidation;
 
         @SuppressWarnings("WeakerAccess")
-        public DeployCallable(FilePath workspace,
-                              TaskListener listener,
+        public DeployCallable(TaskListener listener,
                               String hostname,
                               String bmCredentialsId,
                               StandardUsernamePasswordCredentials bmCredentials,
@@ -461,7 +461,6 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                               String httpProxyPassword,
                               Boolean disableSSLValidation) {
 
-            this.workspace = workspace;
             this.listener = listener;
             this.hostname = hostname;
             this.bmCredentialsId = bmCredentialsId;
@@ -483,7 +482,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
 
         @Override
-        public Void call() throws IOException {
+        public Void invoke(File workspaceDirectory, VirtualChannel channel) throws IOException, InterruptedException {
             PrintStream logger = listener.getLogger();
 
             if (StringUtils.isEmpty(hostname)) {
@@ -579,10 +578,8 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             String codeVersionYearMonthDay = simpleDateFormat.format(Calendar.getInstance().getTime());
             String codeVersionString = String.format("b%s_%s_%s", buildNumber, codeVersionYearMonthDay, buildVersion);
 
-            File wDirectory = new File(workspace.getRemote());
-            File tDirectory = new File(wDirectory, tempDirectory);
-
-            Path wDirectoryPath = wDirectory.toPath().normalize();
+            File tDirectory = new File(workspaceDirectory, tempDirectory);
+            Path wDirectoryPath = workspaceDirectory.toPath().normalize();
             Path tDirectoryPath = tDirectory.toPath().normalize();
 
             if (!tDirectoryPath.startsWith(wDirectoryPath)) {
@@ -641,7 +638,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             List<File> zippedCartridges = new ArrayList<>();
 
             for (SourcePath sourcePath : sourcePaths) {
-                Path pSourcePath = Paths.get(wDirectory.getAbsolutePath(), sourcePath.getSourcePath()).normalize();
+                Path pSourcePath = Paths.get(workspaceDirectory.getAbsolutePath(), sourcePath.getSourcePath()).normalize();
                 File fSourcePath = pSourcePath.toFile();
 
                 if (!pSourcePath.startsWith(wDirectoryPath)) {
