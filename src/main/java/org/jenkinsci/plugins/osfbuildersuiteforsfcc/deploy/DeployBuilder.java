@@ -15,7 +15,7 @@ import hudson.security.ACL;
 import hudson.tasks.Builder;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.util.ListBoxModel;
-import jenkins.MasterToSlaveFileCallable;
+import jenkins.security.MasterToSlaveCallable;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
 import org.apache.commons.io.FileUtils;
@@ -262,7 +262,13 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             throw abortException;
         }
 
-        workspace.act(new DeployCallable(
+        VirtualChannel virtualChannel = launcher.getChannel();
+        if (virtualChannel == null) {
+            throw new AbortException("Failed to acquire VirtualChannel from target node!");
+        }
+
+        virtualChannel.call(new DeployCallable(
+                workspace,
                 listener,
                 expandedHostname,
                 bmCredentialsId,
@@ -416,10 +422,11 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
     }
 
-    private static class DeployCallable extends MasterToSlaveFileCallable<Void> {
+    private static class DeployCallable extends MasterToSlaveCallable<Void, IOException> {
 
         private static final long serialVersionUID = 1L;
 
+        private final FilePath workspace;
         private final TaskListener listener;
         private final String hostname;
         private final String bmCredentialsId;
@@ -440,7 +447,8 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         private final Boolean disableSSLValidation;
 
         @SuppressWarnings("WeakerAccess")
-        public DeployCallable(TaskListener listener,
+        public DeployCallable(FilePath workspace,
+                              TaskListener listener,
                               String hostname,
                               String bmCredentialsId,
                               BusinessManagerAuthCredentials bmCredentials,
@@ -459,6 +467,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                               String httpProxyPassword,
                               Boolean disableSSLValidation) {
 
+            this.workspace = workspace;
             this.listener = listener;
             this.hostname = hostname;
             this.bmCredentialsId = bmCredentialsId;
@@ -480,7 +489,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
 
         @Override
-        public Void invoke(File workspaceDirectory, VirtualChannel channel) throws IOException, InterruptedException {
+        public Void call() throws IOException {
             PrintStream logger = listener.getLogger();
 
             if (StringUtils.isEmpty(hostname)) {
@@ -576,8 +585,10 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             String codeVersionYearMonthDay = simpleDateFormat.format(Calendar.getInstance().getTime());
             String codeVersionString = String.format("b%s_%s_%s", buildNumber, codeVersionYearMonthDay, buildVersion);
 
-            File tDirectory = new File(workspaceDirectory, tempDirectory);
-            Path wDirectoryPath = workspaceDirectory.toPath().normalize();
+            File wDirectory = new File(workspace.getRemote());
+            File tDirectory = new File(wDirectory, tempDirectory);
+
+            Path wDirectoryPath = wDirectory.toPath().normalize();
             Path tDirectoryPath = tDirectory.toPath().normalize();
 
             if (!tDirectoryPath.startsWith(wDirectoryPath)) {
@@ -636,7 +647,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             List<File> zippedCartridges = new ArrayList<>();
 
             for (SourcePath sourcePath : sourcePaths) {
-                Path pSourcePath = Paths.get(workspaceDirectory.getAbsolutePath(), sourcePath.getSourcePath()).normalize();
+                Path pSourcePath = Paths.get(wDirectory.getAbsolutePath(), sourcePath.getSourcePath()).normalize();
                 File fSourcePath = pSourcePath.toFile();
 
                 if (!pSourcePath.startsWith(wDirectoryPath)) {
