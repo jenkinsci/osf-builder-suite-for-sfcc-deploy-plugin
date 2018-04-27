@@ -94,9 +94,15 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
     private String tempDirectory;
 
     @DataBoundConstructor
-    public DeployBuilder(String hostname, String bmCredentialsId, String tfCredentialsId,
-                         String buildVersion, Boolean createBuildInfoCartridge, Boolean activateBuild,
-                         List<SourcePath> sourcePaths, String tempDirectory) {
+    public DeployBuilder(
+            String hostname,
+            String bmCredentialsId,
+            String tfCredentialsId,
+            String buildVersion,
+            Boolean createBuildInfoCartridge,
+            Boolean activateBuild,
+            List<SourcePath> sourcePaths,
+            String tempDirectory) {
 
         this.hostname = hostname;
         this.bmCredentialsId = bmCredentialsId;
@@ -207,10 +213,11 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
     }
 
     @Override
-    public void perform(@Nonnull Run<?, ?> build,
-                        @Nonnull FilePath workspace,
-                        @Nonnull Launcher launcher,
-                        @Nonnull TaskListener listener) throws InterruptedException, IOException {
+    public void perform(
+            @Nonnull Run<?, ?> build,
+            @Nonnull FilePath workspace,
+            @Nonnull Launcher launcher,
+            @Nonnull TaskListener listener) throws InterruptedException, IOException {
 
         PrintStream logger = listener.getLogger();
 
@@ -447,25 +454,26 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         private final Boolean disableSSLValidation;
 
         @SuppressWarnings("WeakerAccess")
-        public DeployCallable(FilePath workspace,
-                              TaskListener listener,
-                              String hostname,
-                              String bmCredentialsId,
-                              BusinessManagerAuthCredentials bmCredentials,
-                              String tfCredentialsId,
-                              TwoFactorAuthCredentials tfCredentials,
-                              String buildVersion,
-                              String buildCause,
-                              Integer buildNumber,
-                              Boolean createBuildInfoCartridge,
-                              Boolean activateBuild,
-                              List<SourcePath> sourcePaths,
-                              String tempDirectory,
-                              String httpProxyHost,
-                              String httpProxyPort,
-                              String httpProxyUsername,
-                              String httpProxyPassword,
-                              Boolean disableSSLValidation) {
+        public DeployCallable(
+                FilePath workspace,
+                TaskListener listener,
+                String hostname,
+                String bmCredentialsId,
+                BusinessManagerAuthCredentials bmCredentials,
+                String tfCredentialsId,
+                TwoFactorAuthCredentials tfCredentials,
+                String buildVersion,
+                String buildCause,
+                Integer buildNumber,
+                Boolean createBuildInfoCartridge,
+                Boolean activateBuild,
+                List<SourcePath> sourcePaths,
+                String tempDirectory,
+                String httpProxyHost,
+                String httpProxyPort,
+                String httpProxyUsername,
+                String httpProxyPassword,
+                Boolean disableSSLValidation) {
 
             this.workspace = workspace;
             this.listener = listener;

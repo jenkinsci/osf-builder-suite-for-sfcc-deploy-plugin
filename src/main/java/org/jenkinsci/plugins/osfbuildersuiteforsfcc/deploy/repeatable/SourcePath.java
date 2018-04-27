@@ -30,7 +30,7 @@ public class SourcePath implements Serializable, Describable<SourcePath> {
 
     @Override
     public DescriptorImpl getDescriptor() {
-        return (DescriptorImpl) Jenkins.getInstance().getDescriptor(getClass());
+        return (DescriptorImpl) Jenkins.get().getDescriptor(getClass());
     }
 
     @Extension
@@ -38,7 +38,7 @@ public class SourcePath implements Serializable, Describable<SourcePath> {
 
         @Override
         public String getDisplayName() {
-            return "OSF Builder Suite For SFCC (Deploy : SourcePath)";
+            return "OSF Builder Suite For Salesforce Commerce Cloud :: Deploy (SourcePath)";
         }
     }
 }
