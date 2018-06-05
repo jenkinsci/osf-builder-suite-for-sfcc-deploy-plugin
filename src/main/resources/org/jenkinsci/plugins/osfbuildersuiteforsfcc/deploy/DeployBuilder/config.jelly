@@ -68,7 +68,7 @@
     </f:entry>
 
     <f:entry
-        title="Temp Build Directory"
+        title="Temp Directory"
         field="tempDirectory"
         help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-tempDirectory.html">
 

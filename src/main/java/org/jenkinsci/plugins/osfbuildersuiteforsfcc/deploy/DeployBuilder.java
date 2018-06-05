@@ -19,6 +19,7 @@ import jenkins.security.MasterToSlaveCallable;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.commons.text.StringEscapeUtils;
@@ -582,7 +583,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             if (StringUtils.isEmpty(tempDirectory)) {
                 logger.println();
                 throw new AbortException(
-                        "Missing \"Temp Build Directory\"!" + " " +
+                        "Missing \"Temp Directory\"!" + " " +
                                 "We need a temporary place to store the build before we can deploy it!"
                 );
             }
@@ -602,7 +603,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             if (!tDirectoryPath.startsWith(wDirectoryPath)) {
                 logger.println();
                 throw new AbortException(
-                        "Invalid value for \"Temp Build Directory\"! The path needs to be inside the workspace!"
+                        "Invalid value for \"Temp Directory\"! The path needs to be inside the workspace!"
                 );
             }
 
@@ -1166,7 +1167,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     throw abortException;
                 }
 
-                char[] keyStorePassword = bmCredentialsPassword.toCharArray();
+                char[] keyStorePassword = RandomStringUtils.randomAscii(32).toCharArray();
 
                 try {
                     customKeyStore.setKeyEntry(
