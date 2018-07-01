@@ -15,7 +15,7 @@ import hudson.security.ACL;
 import hudson.tasks.Builder;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.util.ListBoxModel;
-import jenkins.security.MasterToSlaveCallable;
+import jenkins.MasterToSlaveFileCallable;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
 import org.apache.commons.io.FileUtils;
@@ -270,13 +270,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             throw abortException;
         }
 
-        VirtualChannel virtualChannel = launcher.getChannel();
-        if (virtualChannel == null) {
-            throw new AbortException("Failed to acquire VirtualChannel from target node!");
-        }
-
-        virtualChannel.call(new DeployCallable(
-                workspace,
+        workspace.act(new DeployCallable(
                 listener,
                 expandedHostname,
                 bmCredentialsId,
@@ -324,8 +318,9 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             return "OSF Builder Suite For Salesforce Commerce Cloud :: Deploy";
         }
 
-        public boolean isApplicable(Class<? extends AbstractProject> aClass) {
-            return true;
+        @Override
+        public boolean isApplicable(Class<? extends AbstractProject> jobType) {
+            return false;
         }
 
         @SuppressWarnings("unused")
@@ -430,11 +425,10 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
     }
 
-    private static class DeployCallable extends MasterToSlaveCallable<Void, IOException> {
+    private static class DeployCallable extends MasterToSlaveFileCallable<Void> {
 
         private static final long serialVersionUID = 1L;
 
-        private final FilePath workspace;
         private final TaskListener listener;
         private final String hostname;
         private final String bmCredentialsId;
@@ -456,7 +450,6 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
 
         @SuppressWarnings("WeakerAccess")
         public DeployCallable(
-                FilePath workspace,
                 TaskListener listener,
                 String hostname,
                 String bmCredentialsId,
@@ -476,7 +469,6 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 String httpProxyPassword,
                 Boolean disableSSLValidation) {
 
-            this.workspace = workspace;
             this.listener = listener;
             this.hostname = hostname;
             this.bmCredentialsId = bmCredentialsId;
@@ -498,7 +490,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
 
         @Override
-        public Void call() throws IOException {
+        public Void invoke(File dir, VirtualChannel channel) throws IOException, InterruptedException {
             PrintStream logger = listener.getLogger();
 
             if (StringUtils.isEmpty(hostname)) {
@@ -594,7 +586,8 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             String codeVersionYearMonthDay = simpleDateFormat.format(Calendar.getInstance().getTime());
             String codeVersionString = String.format("b%s_%s_%s", buildNumber, codeVersionYearMonthDay, buildVersion);
 
-            File wDirectory = new File(workspace.getRemote());
+            @SuppressWarnings("UnnecessaryLocalVariable")
+            File wDirectory = dir;
             File tDirectory = new File(wDirectory, tempDirectory);
 
             Path wDirectoryPath = wDirectory.toPath().normalize();
