@@ -320,7 +320,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
 
         @Override
         public boolean isApplicable(Class<? extends AbstractProject> jobType) {
-            return false;
+            return true;
         }
 
         @SuppressWarnings("unused")
