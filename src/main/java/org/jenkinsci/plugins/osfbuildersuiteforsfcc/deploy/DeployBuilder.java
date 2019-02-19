@@ -1,10 +1,10 @@
 package org.jenkinsci.plugins.osfbuildersuiteforsfcc.deploy;
 
 import com.cloudbees.plugins.credentials.CredentialsMatchers;
+import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardCredentials;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.domains.URIRequirementBuilder;
-import com.google.gson.*;
 import hudson.AbortException;
 import hudson.Launcher;
 import hudson.Extension;
@@ -17,6 +17,7 @@ import hudson.tasks.Builder;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.util.ListBoxModel;
 import jenkins.MasterToSlaveFileCallable;
+import jenkins.model.Jenkins;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
 import org.apache.commons.io.FileUtils;
@@ -31,19 +32,13 @@ import org.apache.http.auth.NTCredentials;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.entity.GzipDecompressingEntity;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.*;
 import org.apache.http.config.ConnectionConfig;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.conn.ssl.TrustStrategy;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.*;
-import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
-import org.apache.http.util.EntityUtils;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
@@ -52,6 +47,7 @@ import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
 import org.codehaus.plexus.util.MatchPattern;
 import org.jenkinsci.Symbol;
+import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.HTTPProxyCredentials;
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.OpenCommerceAPICredentials;
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.TwoFactorAuthCredentials;
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.BusinessManagerAuthCredentials;
@@ -67,7 +63,6 @@ import org.zeroturnaround.zip.ZipUtil;
 import javax.annotation.Nonnull;
 import javax.net.ssl.SSLContext;
 import java.io.*;
-import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -83,7 +78,6 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 
 @SuppressWarnings("unused")
@@ -272,7 +266,8 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             bmCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
                     bmCredentialsId,
                     BusinessManagerAuthCredentials.class,
-                    build, URIRequirementBuilder.create().build()
+                    build,
+                    URIRequirementBuilder.create().build()
             );
         }
 
@@ -285,7 +280,8 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             tfCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
                     tfCredentialsId,
                     TwoFactorAuthCredentials.class,
-                    build, URIRequirementBuilder.create().build()
+                    build,
+                    URIRequirementBuilder.create().build()
             );
         }
 
@@ -298,7 +294,8 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             ocCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
                     ocCredentialsId,
                     OpenCommerceAPICredentials.class,
-                    build, URIRequirementBuilder.create().build()
+                    build,
+                    URIRequirementBuilder.create().build()
             );
         }
 
@@ -313,6 +310,16 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             AbortException abortException = new AbortException("Exception thrown while expanding the build version!");
             abortException.initCause(e);
             throw abortException;
+        }
+
+        HTTPProxyCredentials httpProxyCredentials = null;
+        if (StringUtils.isNotEmpty(getDescriptor().getHttpProxyCredentialsId())) {
+            httpProxyCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
+                    getDescriptor().getHttpProxyCredentialsId(),
+                    HTTPProxyCredentials.class,
+                    build,
+                    URIRequirementBuilder.create().build()
+            );
         }
 
         workspace.act(new DeployCallable(
@@ -332,10 +339,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 activateBuild,
                 sourcePaths,
                 tempDirectory,
-                getDescriptor().getHttpProxyHost(),
-                getDescriptor().getHttpProxyPort(),
-                getDescriptor().getHttpProxyUsername(),
-                getDescriptor().getHttpProxyPassword(),
+                httpProxyCredentials,
                 getDescriptor().getDisableSSLValidation()
         ));
 
@@ -352,10 +356,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
     @Extension
     @Symbol("osfBuilderSuiteForSFCCDeploy")
     public static final class DescriptorImpl extends BuildStepDescriptor<Builder> {
-        private String httpProxyHost;
-        private String httpProxyPort;
-        private String httpProxyUsername;
-        private String httpProxyPassword;
+        private String httpProxyCredentialsId;
         private Boolean disableSSLValidation;
 
         public DescriptorImpl() {
@@ -372,101 +373,141 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
 
         @SuppressWarnings("unused")
-        public ListBoxModel doFillBmCredentialsIdItems(@AncestorInPath Item context,
-                                                       @QueryParameter String credentialsId) {
+        public ListBoxModel doFillBmCredentialsIdItems(
+                @AncestorInPath Item item,
+                @QueryParameter String credentialsId) {
 
-            if (context == null || !context.hasPermission(Item.CONFIGURE)) {
-                return new ListBoxModel();
+            StandardListBoxModel result = new StandardListBoxModel();
+
+            if (item == null) {
+                if (!Jenkins.get().hasPermission(Jenkins.ADMINISTER)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
+            } else {
+                if (!item.hasPermission(Item.EXTENDED_READ)
+                        && !item.hasPermission(CredentialsProvider.USE_ITEM)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
             }
 
-            return new StandardListBoxModel().includeEmptyValue().includeMatchingAs(
-                    context instanceof hudson.model.Queue.Task
-                            ? Tasks.getAuthenticationOf((hudson.model.Queue.Task) context)
-                            : ACL.SYSTEM,
-                    context,
-                    StandardCredentials.class,
-                    URIRequirementBuilder.create().build(),
-                    CredentialsMatchers.instanceOf(BusinessManagerAuthCredentials.class)
-            );
+            return result
+                    .includeEmptyValue()
+                    .includeMatchingAs(
+                            item instanceof hudson.model.Queue.Task
+                                    ? Tasks.getAuthenticationOf((hudson.model.Queue.Task) item)
+                                    : ACL.SYSTEM,
+                            item,
+                            StandardCredentials.class,
+                            URIRequirementBuilder.create().build(),
+                            CredentialsMatchers.instanceOf(BusinessManagerAuthCredentials.class)
+                    )
+                    .includeCurrentValue(credentialsId);
         }
 
         @SuppressWarnings("unused")
-        public ListBoxModel doFillTfCredentialsIdItems(@AncestorInPath Item context,
-                                                       @QueryParameter String credentialsId) {
+        public ListBoxModel doFillTfCredentialsIdItems(
+                @AncestorInPath Item item,
+                @QueryParameter String credentialsId) {
 
-            if (context == null || !context.hasPermission(Item.CONFIGURE)) {
-                return new ListBoxModel();
+            StandardListBoxModel result = new StandardListBoxModel();
+
+            if (item == null) {
+                if (!Jenkins.get().hasPermission(Jenkins.ADMINISTER)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
+            } else {
+                if (!item.hasPermission(Item.EXTENDED_READ)
+                        && !item.hasPermission(CredentialsProvider.USE_ITEM)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
             }
 
-            return new StandardListBoxModel().includeEmptyValue().includeMatchingAs(
-                    context instanceof hudson.model.Queue.Task
-                            ? Tasks.getAuthenticationOf((hudson.model.Queue.Task) context)
-                            : ACL.SYSTEM,
-                    context,
-                    StandardCredentials.class,
-                    URIRequirementBuilder.create().build(),
-                    CredentialsMatchers.instanceOf(TwoFactorAuthCredentials.class)
-            );
+            return result
+                    .includeEmptyValue()
+                    .includeMatchingAs(
+                            item instanceof hudson.model.Queue.Task
+                                    ? Tasks.getAuthenticationOf((hudson.model.Queue.Task) item)
+                                    : ACL.SYSTEM,
+                            item,
+                            StandardCredentials.class,
+                            URIRequirementBuilder.create().build(),
+                            CredentialsMatchers.instanceOf(TwoFactorAuthCredentials.class)
+                    )
+                    .includeCurrentValue(credentialsId);
         }
 
         @SuppressWarnings("unused")
         public ListBoxModel doFillOcCredentialsIdItems(
-                @AncestorInPath Item context,
+                @AncestorInPath Item item,
                 @QueryParameter String credentialsId) {
 
-            if (context == null || !context.hasPermission(Item.CONFIGURE)) {
-                return new ListBoxModel();
+            StandardListBoxModel result = new StandardListBoxModel();
+
+            if (item == null) {
+                if (!Jenkins.get().hasPermission(Jenkins.ADMINISTER)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
+            } else {
+                if (!item.hasPermission(Item.EXTENDED_READ)
+                        && !item.hasPermission(CredentialsProvider.USE_ITEM)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
             }
 
-            return new StandardListBoxModel().includeEmptyValue().includeMatchingAs(
-                    context instanceof hudson.model.Queue.Task
-                            ? Tasks.getAuthenticationOf((hudson.model.Queue.Task) context)
-                            : ACL.SYSTEM,
-                    context,
-                    StandardCredentials.class,
-                    URIRequirementBuilder.create().build(),
-                    CredentialsMatchers.instanceOf(OpenCommerceAPICredentials.class)
-            );
+            return result
+                    .includeEmptyValue()
+                    .includeMatchingAs(
+                            item instanceof hudson.model.Queue.Task
+                                    ? Tasks.getAuthenticationOf((hudson.model.Queue.Task) item)
+                                    : ACL.SYSTEM,
+                            item,
+                            StandardCredentials.class,
+                            URIRequirementBuilder.create().build(),
+                            CredentialsMatchers.instanceOf(OpenCommerceAPICredentials.class)
+                    )
+                    .includeCurrentValue(credentialsId);
+        }
+
+        @SuppressWarnings("unused")
+        public ListBoxModel doFillHttpProxyCredentialsIdItems(
+                @AncestorInPath Item item,
+                @QueryParameter String credentialsId) {
+
+            StandardListBoxModel result = new StandardListBoxModel();
+
+            if (item == null) {
+                if (!Jenkins.get().hasPermission(Jenkins.ADMINISTER)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
+            } else {
+                if (!item.hasPermission(Item.EXTENDED_READ)
+                        && !item.hasPermission(CredentialsProvider.USE_ITEM)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
+            }
+
+            return result
+                    .includeEmptyValue()
+                    .includeMatchingAs(
+                            item instanceof hudson.model.Queue.Task
+                                    ? Tasks.getAuthenticationOf((hudson.model.Queue.Task) item)
+                                    : ACL.SYSTEM,
+                            item,
+                            StandardCredentials.class,
+                            URIRequirementBuilder.create().build(),
+                            CredentialsMatchers.instanceOf(HTTPProxyCredentials.class)
+                    )
+                    .includeCurrentValue(credentialsId);
         }
 
         @SuppressWarnings("WeakerAccess")
-        public String getHttpProxyHost() {
-            return httpProxyHost;
+        public String getHttpProxyCredentialsId() {
+            return httpProxyCredentialsId;
         }
 
         @SuppressWarnings({"unused"})
-        public void setHttpProxyHost(String httpProxyHost) {
-            this.httpProxyHost = httpProxyHost;
-        }
-
-        @SuppressWarnings("WeakerAccess")
-        public String getHttpProxyPort() {
-            return httpProxyPort;
-        }
-
-        @SuppressWarnings({"unused"})
-        public void setHttpProxyPort(String httpProxyPort) {
-            this.httpProxyPort = httpProxyPort;
-        }
-
-        @SuppressWarnings("WeakerAccess")
-        public String getHttpProxyUsername() {
-            return httpProxyUsername;
-        }
-
-        @SuppressWarnings({"unused"})
-        public void setHttpProxyUsername(String httpProxyUsername) {
-            this.httpProxyUsername = httpProxyUsername;
-        }
-
-        @SuppressWarnings("WeakerAccess")
-        public String getHttpProxyPassword() {
-            return httpProxyPassword;
-        }
-
-        @SuppressWarnings({"unused"})
-        public void setHttpProxyPassword(String httpProxyPassword) {
-            this.httpProxyPassword = httpProxyPassword;
+        public void setHttpProxyCredentialsId(String httpProxyCredentialsId) {
+            this.httpProxyCredentialsId = httpProxyCredentialsId;
         }
 
         @SuppressWarnings("WeakerAccess")
@@ -481,10 +522,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
 
         @Override
         public boolean configure(StaplerRequest req, JSONObject formData) throws FormException {
-            httpProxyHost = formData.getString("httpProxyHost");
-            httpProxyPort = formData.getString("httpProxyPort");
-            httpProxyUsername = formData.getString("httpProxyUsername");
-            httpProxyPassword = formData.getString("httpProxyPassword");
+            httpProxyCredentialsId = formData.getString("httpProxyCredentialsId");
             disableSSLValidation = formData.getBoolean("disableSSLValidation");
 
             save();
@@ -513,10 +551,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         private final Boolean activateBuild;
         private final List<SourcePath> sourcePaths;
         private final String tempDirectory;
-        private final String httpProxyHost;
-        private final String httpProxyPort;
-        private final String httpProxyUsername;
-        private final String httpProxyPassword;
+        private final HTTPProxyCredentials httpProxyCredentials;
         private final Boolean disableSSLValidation;
 
         @SuppressWarnings("WeakerAccess")
@@ -537,10 +572,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 Boolean activateBuild,
                 List<SourcePath> sourcePaths,
                 String tempDirectory,
-                String httpProxyHost,
-                String httpProxyPort,
-                String httpProxyUsername,
-                String httpProxyPassword,
+                HTTPProxyCredentials httpProxyCredentials,
                 Boolean disableSSLValidation) {
 
             this.listener = listener;
@@ -559,10 +591,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             this.activateBuild = activateBuild;
             this.sourcePaths = sourcePaths;
             this.tempDirectory = tempDirectory;
-            this.httpProxyHost = httpProxyHost;
-            this.httpProxyPort = httpProxyPort;
-            this.httpProxyUsername = httpProxyUsername;
-            this.httpProxyPassword = httpProxyPassword;
+            this.httpProxyCredentials = httpProxyCredentials;
             this.disableSSLValidation = disableSSLValidation;
         }
 
@@ -981,7 +1010,12 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             org.apache.http.client.CredentialsProvider httpCredentialsProvider = new BasicCredentialsProvider();
 
             // Proxy Auth
-            if (StringUtils.isNotEmpty(httpProxyHost) && StringUtils.isNotEmpty(httpProxyPort)) {
+            if (httpProxyCredentials != null) {
+                String httpProxyHost = httpProxyCredentials.getHost();
+                String httpProxyPort = httpProxyCredentials.getPort();
+                String httpProxyUsername = httpProxyCredentials.getUsername();
+                String httpProxyPassword = httpProxyCredentials.getPassword().getPlainText();
+
                 int httpProxyPortInteger;
 
                 try {
