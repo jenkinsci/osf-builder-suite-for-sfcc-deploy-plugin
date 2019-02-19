@@ -4,6 +4,7 @@ import com.cloudbees.plugins.credentials.CredentialsMatchers;
 import com.cloudbees.plugins.credentials.common.StandardCredentials;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.domains.URIRequirementBuilder;
+import com.google.gson.*;
 import hudson.AbortException;
 import hudson.Launcher;
 import hudson.Extension;
@@ -37,7 +38,7 @@ import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.conn.ssl.TrustStrategy;
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.FileEntity;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.*;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.ssl.SSLContextBuilder;
@@ -51,6 +52,7 @@ import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
 import org.codehaus.plexus.util.MatchPattern;
 import org.jenkinsci.Symbol;
+import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.OpenCommerceAPICredentials;
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.TwoFactorAuthCredentials;
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.BusinessManagerAuthCredentials;
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.deploy.repeatable.ExcludePattern;
@@ -65,6 +67,7 @@ import org.zeroturnaround.zip.ZipUtil;
 import javax.annotation.Nonnull;
 import javax.net.ssl.SSLContext;
 import java.io.*;
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -80,6 +83,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 @SuppressWarnings("unused")
@@ -88,6 +92,8 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
     private String hostname;
     private String bmCredentialsId;
     private String tfCredentialsId;
+    private String ocCredentialsId;
+    private String ocVersion;
     private String buildVersion;
     private Boolean createBuildInfoCartridge;
     private Boolean activateBuild;
@@ -99,6 +105,8 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             String hostname,
             String bmCredentialsId,
             String tfCredentialsId,
+            String ocCredentialsId,
+            String ocVersion,
             String buildVersion,
             Boolean createBuildInfoCartridge,
             Boolean activateBuild,
@@ -108,6 +116,8 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         this.hostname = hostname;
         this.bmCredentialsId = bmCredentialsId;
         this.tfCredentialsId = tfCredentialsId;
+        this.ocCredentialsId = ocCredentialsId;
+        this.ocVersion = ocVersion;
         this.buildVersion = buildVersion;
         this.createBuildInfoCartridge = createBuildInfoCartridge;
         this.activateBuild = activateBuild;
@@ -146,6 +156,28 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
     @DataBoundSetter
     public void setTfCredentialsId(String tfCredentialsId) {
         this.tfCredentialsId = StringUtils.trim(tfCredentialsId);
+    }
+
+    @SuppressWarnings("unused")
+    public String getOcCredentialsId() {
+        return ocCredentialsId;
+    }
+
+    @SuppressWarnings("unused")
+    @DataBoundSetter
+    public void setOcCredentialsId(String ocCredentialsId) {
+        this.ocCredentialsId = ocCredentialsId;
+    }
+
+    @SuppressWarnings("unused")
+    public String getOcVersion() {
+        return ocVersion;
+    }
+
+    @SuppressWarnings("unused")
+    @DataBoundSetter
+    public void setOcVersion(String ocVersion) {
+        this.ocVersion = ocVersion;
     }
 
     @SuppressWarnings("unused")
@@ -261,6 +293,19 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             com.cloudbees.plugins.credentials.CredentialsProvider.track(build, tfCredentials);
         }
 
+        OpenCommerceAPICredentials ocCredentials = null;
+        if (StringUtils.isNotEmpty(ocCredentialsId)) {
+            ocCredentials = com.cloudbees.plugins.credentials.CredentialsProvider.findCredentialById(
+                    ocCredentialsId,
+                    OpenCommerceAPICredentials.class,
+                    build, URIRequirementBuilder.create().build()
+            );
+        }
+
+        if (ocCredentials != null) {
+            com.cloudbees.plugins.credentials.CredentialsProvider.track(build, ocCredentials);
+        }
+
         String expandedBuildVersion;
         try {
             expandedBuildVersion = TokenMacro.expandAll(build, workspace, listener, buildVersion);
@@ -277,6 +322,9 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 bmCredentials,
                 tfCredentialsId,
                 tfCredentials,
+                ocCredentialsId,
+                ocCredentials,
+                ocVersion,
                 expandedBuildVersion,
                 getBuildCause(build),
                 build.getNumber(),
@@ -361,12 +409,32 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             );
         }
 
+        @SuppressWarnings("unused")
+        public ListBoxModel doFillOcCredentialsIdItems(
+                @AncestorInPath Item context,
+                @QueryParameter String credentialsId) {
+
+            if (context == null || !context.hasPermission(Item.CONFIGURE)) {
+                return new ListBoxModel();
+            }
+
+            return new StandardListBoxModel().includeEmptyValue().includeMatchingAs(
+                    context instanceof hudson.model.Queue.Task
+                            ? Tasks.getAuthenticationOf((hudson.model.Queue.Task) context)
+                            : ACL.SYSTEM,
+                    context,
+                    StandardCredentials.class,
+                    URIRequirementBuilder.create().build(),
+                    CredentialsMatchers.instanceOf(OpenCommerceAPICredentials.class)
+            );
+        }
+
         @SuppressWarnings("WeakerAccess")
         public String getHttpProxyHost() {
             return httpProxyHost;
         }
 
-        @SuppressWarnings({"WeakerAccess", "unused"})
+        @SuppressWarnings({"unused"})
         public void setHttpProxyHost(String httpProxyHost) {
             this.httpProxyHost = httpProxyHost;
         }
@@ -376,7 +444,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             return httpProxyPort;
         }
 
-        @SuppressWarnings({"WeakerAccess", "unused"})
+        @SuppressWarnings({"unused"})
         public void setHttpProxyPort(String httpProxyPort) {
             this.httpProxyPort = httpProxyPort;
         }
@@ -386,7 +454,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             return httpProxyUsername;
         }
 
-        @SuppressWarnings({"WeakerAccess", "unused"})
+        @SuppressWarnings({"unused"})
         public void setHttpProxyUsername(String httpProxyUsername) {
             this.httpProxyUsername = httpProxyUsername;
         }
@@ -396,7 +464,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             return httpProxyPassword;
         }
 
-        @SuppressWarnings({"WeakerAccess", "unused"})
+        @SuppressWarnings({"unused"})
         public void setHttpProxyPassword(String httpProxyPassword) {
             this.httpProxyPassword = httpProxyPassword;
         }
@@ -406,7 +474,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             return disableSSLValidation;
         }
 
-        @SuppressWarnings({"WeakerAccess", "unused"})
+        @SuppressWarnings({"unused"})
         public void setDisableSSLValidation(Boolean disableSSLValidation) {
             this.disableSSLValidation = disableSSLValidation;
         }
@@ -435,6 +503,9 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         private final BusinessManagerAuthCredentials bmCredentials;
         private final String tfCredentialsId;
         private final TwoFactorAuthCredentials tfCredentials;
+        private final String ocCredentialsId;
+        private final OpenCommerceAPICredentials ocCredentials;
+        private final String ocVersion;
         private final String buildVersion;
         private final String buildCause;
         private final Integer buildNumber;
@@ -456,6 +527,9 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 BusinessManagerAuthCredentials bmCredentials,
                 String tfCredentialsId,
                 TwoFactorAuthCredentials tfCredentials,
+                String ocCredentialsId,
+                OpenCommerceAPICredentials ocCredentials,
+                String ocVersion,
                 String buildVersion,
                 String buildCause,
                 Integer buildNumber,
@@ -475,6 +549,9 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             this.bmCredentials = bmCredentials;
             this.tfCredentialsId = tfCredentialsId;
             this.tfCredentials = tfCredentials;
+            this.ocCredentialsId = ocCredentialsId;
+            this.ocCredentials = ocCredentials;
+            this.ocVersion = ocVersion;
             this.buildVersion = buildVersion;
             this.buildCause = buildCause;
             this.buildNumber = buildNumber;
@@ -490,7 +567,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
 
         @Override
-        public Void invoke(File dir, VirtualChannel channel) throws IOException, InterruptedException {
+        public Void invoke(File dir, VirtualChannel channel) throws IOException {
             PrintStream logger = listener.getLogger();
 
             if (StringUtils.isEmpty(hostname)) {
@@ -543,6 +620,30 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                                     "Missing value for \"Client Private Key\"!"
                     );
                 }
+            }
+
+            if (StringUtils.isEmpty(ocCredentialsId)) {
+                logger.println();
+                throw new AbortException(
+                        "Missing \"Open Commerce API Credentials\"!" + " " +
+                                "We can't deploy the build without proper credentials, can't we?"
+                );
+            }
+
+            if (ocCredentials == null) {
+                logger.println();
+                throw new AbortException(
+                        "Failed to load \"Open Commerce API Credentials\"!" + " " +
+                                "Something's wrong but not sure who's blame it is..."
+                );
+            }
+
+            if (StringUtils.isEmpty(ocVersion)) {
+                logger.println();
+                throw new AbortException(
+                        "Missing \"Open Commerce API Version\"!" + " " +
+                                "We can't use Open Commerce API without specifying a version, can't we?"
+                );
             }
 
             if (StringUtils.isEmpty(buildVersion)) {
@@ -691,7 +792,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                             );
                         }
 
-                        Boolean excludeCartridge = excludePatterns.stream().anyMatch((pattern) -> {
+                        boolean excludeCartridge = excludePatterns.stream().anyMatch((pattern) -> {
                             String pathToMatch = File.separator + cartridge.getName() + File.separator;
                             return pattern.matchPath(pathToMatch, true);
                         });
@@ -708,7 +809,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                         logger.println(String.format(" - %s", cartridge.getName()));
 
                         ZipUtil.pack(cartridge, cartridgeZip, (path) -> {
-                            Boolean excludeFile = excludePatterns.stream().anyMatch((pattern) -> {
+                            boolean excludeFile = excludePatterns.stream().anyMatch((pattern) -> {
                                 String pathToMatch = File.separator + cartridge.getName() + File.separator + path;
                                 return pattern.matchPath(pathToMatch, true);
                             });
@@ -881,10 +982,10 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
 
             // Proxy Auth
             if (StringUtils.isNotEmpty(httpProxyHost) && StringUtils.isNotEmpty(httpProxyPort)) {
-                Integer httpProxyPortInteger;
+                int httpProxyPortInteger;
 
                 try {
-                    httpProxyPortInteger = Integer.valueOf(httpProxyPort);
+                    httpProxyPortInteger = Integer.parseInt(httpProxyPort);
                 } catch (NumberFormatException e) {
                     logger.println();
                     throw new AbortException(
@@ -921,14 +1022,6 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                     }
                 }
             }
-
-            // WebDAV Auth
-            String bmCredentialsUsername = bmCredentials.getUsername();
-            String bmCredentialsPassword = bmCredentials.getPassword().getPlainText();
-            httpCredentialsProvider.setCredentials(
-                    new AuthScope(hostname, 443),
-                    new UsernamePasswordCredentials(bmCredentialsUsername, bmCredentialsPassword)
-            );
 
             httpClientBuilder.setDefaultCredentialsProvider(httpCredentialsProvider);
 
@@ -1236,114 +1329,24 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             /* Setup HTTP Client */
 
 
-            /* Checking if the new code version does not already exist on the server */
-            logger.println();
-            logger.println("[+] Checking if the new code version does not already exist on the server");
-            logger.println(String.format(" - %s (%s)", hostname, codeVersionString));
-
-            RequestBuilder chRequestBuilder = RequestBuilder.create("HEAD");
-            chRequestBuilder.setUri(String.format(
-                    "https://%s/on/demandware.servlet/webdav/Sites/Cartridges/%s",
-                    hostname, codeVersionString
-            ));
-
-            CloseableHttpResponse chHttpResponse;
-
-            try {
-                chHttpResponse = httpClient.execute(chRequestBuilder.build());
-            } catch (IOException e) {
-                logger.println();
-                AbortException abortException = new AbortException(String.format(
-                        "Exception thrown while making HTTP request!\n%s",
-                        ExceptionUtils.getStackTrace(e)
-                ));
-                abortException.initCause(e);
-                throw abortException;
-            }
-
-            try {
-                chHttpResponse.close();
-            } catch (IOException e) {
-                logger.println();
-                AbortException abortException = new AbortException(String.format(
-                        "Exception thrown while making HTTP request!\n%s",
-                        ExceptionUtils.getStackTrace(e)
-                ));
-                abortException.initCause(e);
-                throw abortException;
-            }
-
-            StatusLine chHttpStatusLine = chHttpResponse.getStatusLine();
-
-            if (chHttpStatusLine.getStatusCode() != HttpStatus.SC_NOT_FOUND) {
-                if (chHttpStatusLine.getStatusCode() == HttpStatus.SC_UNAUTHORIZED) {
-                    logger.println();
-                    throw new AbortException("Invalid username or password!");
-                } else if (chHttpStatusLine.getStatusCode() == HttpStatus.SC_OK) {
-                    logger.println();
-                    throw new AbortException("Code version already exists on the server!");
-                } else {
-                    logger.println();
-                    throw new AbortException(String.format(
-                            "%s - %s!", chHttpStatusLine.getStatusCode(), chHttpStatusLine.getReasonPhrase()
-                    ));
-                }
-            }
-
-            logger.println(" + Ok");
-            /* Checking if the new code version does not already exist on the server */
-
-
             /* Creating new code version */
             logger.println();
             logger.println("[+] Creating new code version");
             logger.println(String.format(" - %s (%s)", hostname, codeVersionString));
 
-            RequestBuilder crRequestBuilder = RequestBuilder.create("MKCOL");
-            crRequestBuilder.setUri(String.format(
-                    "https://%s/on/demandware.servlet/webdav/Sites/Cartridges/%s",
-                    hostname, codeVersionString
-            ));
-
-            CloseableHttpResponse crHttpResponse;
-
-            try {
-                crHttpResponse = httpClient.execute(crRequestBuilder.build());
-            } catch (IOException e) {
-                logger.println();
-                AbortException abortException = new AbortException(String.format(
-                        "Exception thrown while making HTTP request!\n%s",
-                        ExceptionUtils.getStackTrace(e)
-                ));
-                abortException.initCause(e);
-                throw abortException;
-            }
-
-            try {
-                crHttpResponse.close();
-            } catch (IOException e) {
-                logger.println();
-                AbortException abortException = new AbortException(String.format(
-                        "Exception thrown while making HTTP request!\n%s",
-                        ExceptionUtils.getStackTrace(e)
-                ));
-                abortException.initCause(e);
-                throw abortException;
-            }
-
-            StatusLine crHttpStatusLine = crHttpResponse.getStatusLine();
-
-            if (crHttpStatusLine.getStatusCode() != HttpStatus.SC_CREATED) {
-                if (crHttpStatusLine.getStatusCode() == HttpStatus.SC_UNAUTHORIZED) {
-                    logger.println();
-                    throw new AbortException("Invalid username or password!");
-                } else {
-                    logger.println();
-                    throw new AbortException(String.format(
-                            "%s - %s!", crHttpStatusLine.getStatusCode(), crHttpStatusLine.getReasonPhrase()
-                    ));
-                }
-            }
+            OpenCommerceAPI.createCodeVersion(
+                    OpenCommerceAPI.auth(
+                            httpClient,
+                            hostname,
+                            bmCredentials,
+                            ocCredentials
+                    ),
+                    httpClient,
+                    hostname,
+                    ocVersion,
+                    codeVersionString,
+                    ocCredentials
+            );
 
             logger.println(" + Ok");
             /* Creating new code version */
@@ -1354,156 +1357,51 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             logger.println("[+] Uploading cartridges");
 
             for (File zippedCartridge : zippedCartridges) {
-                String zippedCartridgeName = zippedCartridge.getName();
-                logger.println(String.format(" - %s", zippedCartridgeName));
+                logger.println(String.format(" - %s", zippedCartridge.getName()));
 
                 if (!zippedCartridge.exists()) {
                     logger.println();
-                    throw new AbortException(String.format("\"%s\" does not exist!", zippedCartridgeName));
+                    throw new AbortException(String.format("\"%s\" does not exist!", zippedCartridge.getName()));
                 }
 
-                RequestBuilder upRequestBuilder = RequestBuilder.create("PUT");
-                upRequestBuilder.setEntity(new FileEntity(zippedCartridge, ContentType.APPLICATION_OCTET_STREAM));
-                upRequestBuilder.setUri(String.format(
-                        "https://%s/on/demandware.servlet/webdav/Sites/Cartridges/%s/%s",
-                        hostname, codeVersionString, zippedCartridgeName
-                ));
+                WebDAV.uploadCartridgeZip(
+                        OpenCommerceAPI.auth(
+                                httpClient,
+                                hostname,
+                                bmCredentials,
+                                ocCredentials
+                        ),
+                        httpClient,
+                        hostname,
+                        codeVersionString,
+                        zippedCartridge
+                );
 
-                CloseableHttpResponse upHttpResponse;
+                WebDAV.unzipCartridge(
+                        OpenCommerceAPI.auth(
+                                httpClient,
+                                hostname,
+                                bmCredentials,
+                                ocCredentials
+                        ),
+                        httpClient,
+                        hostname,
+                        codeVersionString,
+                        zippedCartridge
+                );
 
-                try {
-                    upHttpResponse = httpClient.execute(upRequestBuilder.build());
-                } catch (IOException e) {
-                    logger.println();
-                    AbortException abortException = new AbortException(String.format(
-                            "Exception thrown while making HTTP request!\n%s",
-                            ExceptionUtils.getStackTrace(e)
-                    ));
-                    abortException.initCause(e);
-                    throw abortException;
-                }
-
-                try {
-                    upHttpResponse.close();
-                } catch (IOException e) {
-                    logger.println();
-                    AbortException abortException = new AbortException(String.format(
-                            "Exception thrown while making HTTP request!\n%s",
-                            ExceptionUtils.getStackTrace(e)
-                    ));
-                    abortException.initCause(e);
-                    throw abortException;
-                }
-
-                StatusLine upHttpStatusLine = upHttpResponse.getStatusLine();
-
-                if (upHttpStatusLine.getStatusCode() != HttpStatus.SC_CREATED) {
-                    if (upHttpStatusLine.getStatusCode() == HttpStatus.SC_UNAUTHORIZED) {
-                        logger.println();
-                        throw new AbortException("Invalid username or password!");
-                    } else {
-                        logger.println();
-                        throw new AbortException(String.format(
-                                "%s - %s!", upHttpStatusLine.getStatusCode(), upHttpStatusLine.getReasonPhrase()
-                        ));
-                    }
-                }
-
-                List<NameValuePair> exHttpPostParams = new ArrayList<>();
-                exHttpPostParams.add(new BasicNameValuePair("method", "UNZIP"));
-
-                RequestBuilder exRequestBuilder = RequestBuilder.create("POST");
-                exRequestBuilder.setEntity(new UrlEncodedFormEntity(exHttpPostParams, Consts.UTF_8));
-                exRequestBuilder.setUri(String.format(
-                        "https://%s/on/demandware.servlet/webdav/Sites/Cartridges/%s/%s",
-                        hostname, codeVersionString, zippedCartridgeName
-                ));
-
-                CloseableHttpResponse exHttpResponse;
-
-                try {
-                    exHttpResponse = httpClient.execute(exRequestBuilder.build());
-                } catch (IOException e) {
-                    logger.println();
-                    AbortException abortException = new AbortException(String.format(
-                            "Exception thrown while making HTTP request!\n%s",
-                            ExceptionUtils.getStackTrace(e)
-                    ));
-                    abortException.initCause(e);
-                    throw abortException;
-                }
-
-                try {
-                    exHttpResponse.close();
-                } catch (IOException e) {
-                    logger.println();
-                    AbortException abortException = new AbortException(String.format(
-                            "Exception thrown while making HTTP request!\n%s",
-                            ExceptionUtils.getStackTrace(e)
-                    ));
-                    abortException.initCause(e);
-                    throw abortException;
-                }
-
-                StatusLine exHttpStatusLine = exHttpResponse.getStatusLine();
-
-                if (exHttpStatusLine.getStatusCode() != HttpStatus.SC_CREATED) {
-                    if (exHttpStatusLine.getStatusCode() == HttpStatus.SC_UNAUTHORIZED) {
-                        logger.println();
-                        throw new AbortException("Invalid username or password!");
-                    } else {
-                        logger.println();
-                        throw new AbortException(String.format(
-                                "%s - %s!", exHttpStatusLine.getStatusCode(), exHttpStatusLine.getReasonPhrase()
-                        ));
-                    }
-                }
-
-                RequestBuilder rmRequestBuilder = RequestBuilder.create("DELETE");
-                rmRequestBuilder.setUri(String.format(
-                        "https://%s/on/demandware.servlet/webdav/Sites/Cartridges/%s/%s",
-                        hostname, codeVersionString, zippedCartridgeName
-                ));
-
-                CloseableHttpResponse rmHttpResponse;
-
-                try {
-                    rmHttpResponse = httpClient.execute(rmRequestBuilder.build());
-                } catch (IOException e) {
-                    logger.println();
-                    AbortException abortException = new AbortException(String.format(
-                            "Exception thrown while making HTTP request!\n%s",
-                            ExceptionUtils.getStackTrace(e)
-                    ));
-                    abortException.initCause(e);
-                    throw abortException;
-                }
-
-                try {
-                    rmHttpResponse.close();
-                } catch (IOException e) {
-                    logger.println();
-                    AbortException abortException = new AbortException(String.format(
-                            "Exception thrown while making HTTP request!\n%s",
-                            ExceptionUtils.getStackTrace(e)
-                    ));
-                    abortException.initCause(e);
-                    throw abortException;
-                }
-
-                StatusLine rmHttpStatusLine = rmHttpResponse.getStatusLine();
-
-                if (rmHttpStatusLine.getStatusCode() != HttpStatus.SC_NO_CONTENT) {
-                    if (rmHttpStatusLine.getStatusCode() == HttpStatus.SC_UNAUTHORIZED) {
-                        logger.println();
-                        throw new AbortException("Invalid username or password!");
-                    } else {
-                        logger.println();
-                        throw new AbortException(String.format(
-                                "%s - %s!", rmHttpStatusLine.getStatusCode(), rmHttpStatusLine.getReasonPhrase()
-                        ));
-                    }
-                }
+                WebDAV.removeCartridgeZip(
+                        OpenCommerceAPI.auth(
+                                httpClient,
+                                hostname,
+                                bmCredentials,
+                                ocCredentials
+                        ),
+                        httpClient,
+                        hostname,
+                        codeVersionString,
+                        zippedCartridge
+                );
             }
 
             logger.println(" + Ok");
@@ -1516,159 +1414,19 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
                 logger.println("[+] Activating code version");
                 logger.println(String.format(" - %s (%s)", hostname, codeVersionString));
 
-                List<NameValuePair> lgHttpPostParams = new ArrayList<>();
-                lgHttpPostParams.add(new BasicNameValuePair("LoginForm_Login", bmCredentialsUsername));
-                lgHttpPostParams.add(new BasicNameValuePair("LoginForm_Password", bmCredentialsPassword));
-                lgHttpPostParams.add(new BasicNameValuePair("LoginForm_RegistrationDomain", "Sites"));
-
-                RequestBuilder lgRequestBuilder = RequestBuilder.create("POST");
-                lgRequestBuilder.setEntity(new UrlEncodedFormEntity(lgHttpPostParams, Consts.UTF_8));
-                lgRequestBuilder.setUri(String.format(
-                        "https://%s/on/demandware.store/Sites-Site/default/ViewApplication-ProcessLogin",
-                        hostname
-                ));
-
-                CloseableHttpResponse lgHttpResponse;
-
-                try {
-                    lgHttpResponse = httpClient.execute(lgRequestBuilder.build());
-                } catch (IOException e) {
-                    logger.println();
-                    AbortException abortException = new AbortException(String.format(
-                            "Exception thrown while making HTTP request!\n%s",
-                            ExceptionUtils.getStackTrace(e)
-                    ));
-                    abortException.initCause(e);
-                    throw abortException;
-                }
-
-                EntityUtils.consumeQuietly(lgHttpResponse.getEntity());
-
-                try {
-                    lgHttpResponse.close();
-                } catch (IOException e) {
-                    logger.println();
-                    AbortException abortException = new AbortException(String.format(
-                            "Exception thrown while making HTTP request!\n%s",
-                            ExceptionUtils.getStackTrace(e)
-                    ));
-                    abortException.initCause(e);
-                    throw abortException;
-                }
-
-                StatusLine lgHttpStatusLine = lgHttpResponse.getStatusLine();
-                Header lgLocationHeader = lgHttpResponse.getLastHeader("Location");
-
-                if (lgHttpStatusLine.getStatusCode() == HttpStatus.SC_MOVED_TEMPORARILY && lgLocationHeader != null) {
-                    RequestBuilder lrRequestBuilder = RequestBuilder.create("GET");
-                    lrRequestBuilder.setUri(lgLocationHeader.getValue());
-
-                    CloseableHttpResponse lrHttpResponse;
-
-                    try {
-                        lrHttpResponse = httpClient.execute(lrRequestBuilder.build());
-                    } catch (IOException e) {
-                        logger.println();
-                        AbortException abortException = new AbortException(String.format(
-                                "Exception thrown while making HTTP request!\n%s",
-                                ExceptionUtils.getStackTrace(e)
-                        ));
-                        abortException.initCause(e);
-                        throw abortException;
-                    }
-
-                    EntityUtils.consumeQuietly(lrHttpResponse.getEntity());
-
-                    try {
-                        lrHttpResponse.close();
-                    } catch (IOException e) {
-                        logger.println();
-                        AbortException abortException = new AbortException(String.format(
-                                "Exception thrown while making HTTP request!\n%s",
-                                ExceptionUtils.getStackTrace(e)
-                        ));
-                        abortException.initCause(e);
-                        throw abortException;
-                    }
-                }
-
-                RequestBuilder acRequestBuilder = RequestBuilder.create("GET");
-                acRequestBuilder.setUri(String.format(
-                        "https://%s/on/demandware.store/Sites-Site/default/ViewCodeDeployment-Activate"
-                                + "?CodeVersionID=%s", hostname, codeVersionString
-                ));
-
-                CloseableHttpResponse acHttpResponse;
-
-                try {
-                    acHttpResponse = httpClient.execute(acRequestBuilder.build());
-                } catch (IOException e) {
-                    logger.println();
-                    AbortException abortException = new AbortException(String.format(
-                            "Exception thrown while making HTTP request!\n%s",
-                            ExceptionUtils.getStackTrace(e)
-                    ));
-                    abortException.initCause(e);
-                    throw abortException;
-                }
-
-                HttpEntity acHttpEntity = acHttpResponse.getEntity();
-                StatusLine acHttpStatusLine = acHttpResponse.getStatusLine();
-
-                if (acHttpEntity == null) {
-                    logger.println();
-                    throw new AbortException(String.format(
-                            "Failed to activate code version! %s - %s!",
-                            acHttpStatusLine.getStatusCode(),
-                            acHttpStatusLine.getReasonPhrase()
-                    ));
-                }
-
-                String acHttpEntityString;
-
-                try {
-                    acHttpEntityString = EntityUtils.toString(acHttpEntity, "UTF-8");
-                } catch (IOException e) {
-                    logger.println();
-                    AbortException abortException = new AbortException(String.format(
-                            "Exception thrown while making HTTP request!\n%s",
-                            ExceptionUtils.getStackTrace(e)
-                    ));
-                    abortException.initCause(e);
-                    throw abortException;
-                }
-
-                if (acHttpStatusLine.getStatusCode() != HttpStatus.SC_OK) {
-                    logger.println();
-                    throw new AbortException(String.format(
-                            "Failed to activate code version! %s - %s!",
-                            acHttpStatusLine.getStatusCode(),
-                            acHttpStatusLine.getReasonPhrase()
-                    ));
-                }
-
-                try {
-                    acHttpResponse.close();
-                } catch (IOException e) {
-                    logger.println();
-                    AbortException abortException = new AbortException(String.format(
-                            "Exception thrown while making HTTP request!\n%s",
-                            ExceptionUtils.getStackTrace(e)
-                    ));
-                    abortException.initCause(e);
-                    throw abortException;
-                }
-
-                String acSuccessMessage = String.format("Successfully activated version '%s'", codeVersionString);
-                if (!acHttpEntityString.contains(acSuccessMessage)) {
-                    logger.println();
-                    throw new AbortException(String.format(
-                            "Failed to activate code version! %s - %s! HttpEntity=%s",
-                            acHttpStatusLine.getStatusCode(),
-                            acHttpStatusLine.getReasonPhrase(),
-                            acHttpEntityString
-                    ));
-                }
+                OpenCommerceAPI.activateCodeVersion(
+                        OpenCommerceAPI.auth(
+                                httpClient,
+                                hostname,
+                                bmCredentials,
+                                ocCredentials
+                        ),
+                        httpClient,
+                        hostname,
+                        ocVersion,
+                        codeVersionString,
+                        ocCredentials
+                );
 
                 logger.println(" + Ok");
             }

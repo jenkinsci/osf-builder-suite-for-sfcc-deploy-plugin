@@ -33,6 +33,22 @@
     </f:entry>
 
     <f:entry
+        title="Open Commerce API Credentials"
+        field="ocCredentialsId"
+        help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-ocCredentialsId.html">
+
+        <c:select />
+    </f:entry>
+
+    <f:entry
+        title="Open Commerce API Version"
+        field="ocVersion"
+        help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-ocVersion.html">
+
+        <f:textbox clazz="required" />
+    </f:entry>
+
+    <f:entry
         title="Build Version"
         field="buildVersion"
         help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-buildVersion.html">
