@@ -16,6 +16,7 @@ import org.apache.http.message.BasicNameValuePair;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +39,9 @@ class WebDAV {
         requestBuilder.setEntity(new FileEntity(zippedCartridge, ContentType.APPLICATION_OCTET_STREAM));
         requestBuilder.setUri(String.format(
                 "https://%s/on/demandware.servlet/webdav/Sites/Cartridges/%s/%s",
-                hostname, codeVersionString, zippedCartridge.getName()
+                hostname,
+                URLEncoder.encode(codeVersionString, "UTF-8"),
+                URLEncoder.encode(zippedCartridge.getName(), "UTF-8")
         ));
 
         CloseableHttpResponse httpResponse;
@@ -98,7 +101,9 @@ class WebDAV {
         requestBuilder.setEntity(new UrlEncodedFormEntity(httpPostParams, Consts.UTF_8));
         requestBuilder.setUri(String.format(
                 "https://%s/on/demandware.servlet/webdav/Sites/Cartridges/%s/%s",
-                hostname, codeVersionString, zippedCartridge.getName()
+                hostname,
+                URLEncoder.encode(codeVersionString, "UTF-8"),
+                URLEncoder.encode(zippedCartridge.getName(), "UTF-8")
         ));
 
         CloseableHttpResponse httpResponse;
@@ -154,7 +159,9 @@ class WebDAV {
 
         requestBuilder.setUri(String.format(
                 "https://%s/on/demandware.servlet/webdav/Sites/Cartridges/%s/%s",
-                hostname, codeVersionString, zippedCartridge.getName()
+                hostname,
+                URLEncoder.encode(codeVersionString, "UTF-8"),
+                URLEncoder.encode(zippedCartridge.getName(), "UTF-8")
         ));
 
         CloseableHttpResponse httpResponse;

@@ -54,7 +54,8 @@ class OpenCommerceAPI {
         requestBuilder.setEntity(new UrlEncodedFormEntity(httpPostParams, Consts.UTF_8));
         requestBuilder.setUri(String.format(
                 "https://%s/dw/oauth2/access_token?client_id=%s",
-                hostname, URLEncoder.encode(ocCredentials.getClientId(), "UTF-8")
+                hostname,
+                URLEncoder.encode(ocCredentials.getClientId(), "UTF-8")
         ));
 
         CloseableHttpResponse httpResponse;
