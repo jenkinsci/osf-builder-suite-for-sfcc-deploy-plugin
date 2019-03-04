@@ -46,7 +46,7 @@ class OpenCommerceAPI {
                                 "%s:%s:%s",
                                 bmCredentials.getUsername(),
                                 bmCredentials.getPassword().getPlainText(),
-                                ocCredentials.getClientPassword()
+                                ocCredentials.getClientPassword().getPlainText()
                         ).getBytes(Consts.UTF_8)
                 )
         ));
