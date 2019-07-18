@@ -13,15 +13,70 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.FileEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicNameValuePair;
+import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.BusinessManagerAuthCredentials;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
 class WebDAV {
+    static void checkBusinessManagerCredentials(
+            CloseableHttpClient httpClient,
+            String hostname,
+            BusinessManagerAuthCredentials bmCredentials) throws IOException {
+
+        RequestBuilder requestBuilder = RequestBuilder.create("HEAD");
+        requestBuilder.setHeader("Authorization", String.format(
+                "Basic %s",
+                Base64.getEncoder().encodeToString(
+                        String.format(
+                                "%s:%s",
+                                bmCredentials.getUsername(),
+                                bmCredentials.getPassword().getPlainText()
+                        ).getBytes(Consts.UTF_8)
+                )
+        ));
+
+        requestBuilder.setUri(String.format("https://%s/on/demandware.servlet/webdav/Sites/Cartridges/", hostname));
+
+        CloseableHttpResponse httpResponse;
+
+        try {
+            httpResponse = httpClient.execute(requestBuilder.build());
+        } catch (IOException e) {
+            AbortException abortException = new AbortException(String.format(
+                    "\nException thrown while making HTTP request!\n%s",
+                    ExceptionUtils.getStackTrace(e)
+            ));
+            abortException.initCause(e);
+            throw abortException;
+        }
+
+        try {
+            httpResponse.close();
+        } catch (IOException e) {
+            AbortException abortException = new AbortException(String.format(
+                    "\nException thrown while making HTTP request!\n%s",
+                    ExceptionUtils.getStackTrace(e)
+            ));
+            abortException.initCause(e);
+            throw abortException;
+        }
+
+        StatusLine httpStatusLine = httpResponse.getStatusLine();
+
+        if (httpStatusLine.getStatusCode() == HttpStatus.SC_UNAUTHORIZED) {
+            throw new AbortException(
+                    "\nInvalid username or password for Business Manager Credentials! " +
+                            "Or maybe the password expired and needs to be updated?"
+            );
+        }
+    }
+
     static void uploadCartridgeZip(
             Map<String, String> authResponseMap,
             CloseableHttpClient httpClient,

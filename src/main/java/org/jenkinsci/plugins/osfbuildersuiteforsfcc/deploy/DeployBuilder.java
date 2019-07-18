@@ -1368,6 +1368,12 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             logger.println("[+] Creating new code version");
             logger.println(String.format(" - %s (%s)", hostname, codeVersionString));
 
+            WebDAV.checkBusinessManagerCredentials(
+                    httpClient,
+                    hostname,
+                    bmCredentials
+            );
+
             OpenCommerceAPI.createCodeVersion(
                     OpenCommerceAPI.auth(
                             httpClient,
