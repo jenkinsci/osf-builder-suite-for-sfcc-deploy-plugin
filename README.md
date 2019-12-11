@@ -262,3 +262,7 @@ You can also always consult the pipelines documentation available at <https://j
 # Version history
 
 <https://github.com/jenkinsci/osf-builder-suite-for-sfcc-deploy-plugin/releases>
+
+# Dev
+- `mvn hpi:run`
+- `mvn clean package hpi:hpi`
