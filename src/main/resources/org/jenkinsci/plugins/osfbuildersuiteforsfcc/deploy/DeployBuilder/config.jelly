@@ -17,14 +17,6 @@
     </f:entry>
 
     <f:entry
-        title="Business Manager Credentials"
-        field="bmCredentialsId"
-        help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-bmCredentialsId.html">
-
-        <c:select />
-    </f:entry>
-
-    <f:entry
         title="Two Factor Auth Credentials"
         field="tfCredentialsId"
         help="/plugin/osf-builder-suite-for-sfcc-deploy/help/projectConfig-tfCredentialsId.html">
