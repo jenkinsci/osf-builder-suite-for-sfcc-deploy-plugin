@@ -266,3 +266,4 @@ You can also always consult the pipelines documentation available at <https://j
 # Dev
 - `mvn hpi:run`
 - `mvn clean package hpi:hpi`
+- `mvn release:prepare release:perform`

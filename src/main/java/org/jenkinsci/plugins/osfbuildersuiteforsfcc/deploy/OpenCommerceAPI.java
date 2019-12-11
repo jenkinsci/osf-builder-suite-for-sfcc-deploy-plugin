@@ -461,7 +461,6 @@ class OpenCommerceAPI {
     private AuthResponse auth() throws IOException {
         Long currentTs = new Date().getTime() / 1000L;
         if (cacheAuthExpire > currentTs) {
-            System.out.println("DNLS: CACHED!");
             return new AuthResponse(cacheAuthToken, cacheAuthType);
         }
 
@@ -571,7 +570,6 @@ class OpenCommerceAPI {
         cacheAuthType = tokenType;
         cacheAuthExpire = (new Date().getTime() / 1000L) + expiresIn - 60;
 
-        System.out.println("DNLS: NOT CACHED!");
         return new AuthResponse(cacheAuthToken, cacheAuthType);
     }
 
