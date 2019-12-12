@@ -102,6 +102,31 @@ Path (relative to the workspace) to a temp directory, that will be used during t
 
 Example: `tmp/code`
 
+![](imgs/proxy_host.png)
+
+If your Jenkins server sits behind a firewall and does not have direct access to the internet, you can specify the HTTP proxy host in this field to allow Jenkins to connect to the internet trough it.
+
+![](imgs/proxy_port.png)
+
+This field works in conjunction with the proxy host field to specify the HTTP proxy port.
+
+![](imgs/proxy_username.png)
+
+This field works in conjunction with the proxy host field to specify the username used to authenticate with the proxy.
+
+If this proxy requires Microsoft's [NTLM](https://en.wikipedia.org/wiki/NT_LAN_Manager) authentication scheme then the domain name can be encoded within the username by prefixing the domain name followed by a back-slash `\` before the username, e.g `ACME\John Doe`.
+
+![](imgs/proxy_password.png)
+
+This field works in conjunction with the proxy host field to specify the HTTP proxy password.
+
+![](imgs/ssl_validation.png)
+
+When this option is checked, the builder will no longer validate the SSL certificate and hostname of the target instance.
+
+**This has potential security implications so make sure you know what you are doing before enabling this option!**
+
+
 # **Open Commerce API Settings**
 
 Go to `Administration > Site Development > Open Commerce API Settings`, select type `Data`, select context `Global` and add following configuration:
@@ -164,29 +189,6 @@ Go to `Administration > Organization > WebDAV Client Permissions` and add follow
 
 ```
 
-![](imgs/proxy_host.png)
-
-If your Jenkins server sits behind a firewall and does not have direct access to the internet, you can specify the HTTP proxy host in this field to allow Jenkins to connect to the internet trough it.
-
-![](imgs/proxy_port.png)
-
-This field works in conjunction with the proxy host field to specify the HTTP proxy port.
-
-![](imgs/proxy_username.png)
-
-This field works in conjunction with the proxy host field to specify the username used to authenticate with the proxy.
-
-If this proxy requires Microsoft's [NTLM](https://en.wikipedia.org/wiki/NT_LAN_Manager) authentication scheme then the domain name can be encoded within the username by prefixing the domain name followed by a back-slash `\` before the username, e.g `ACME\John Doe`.
-
-![](imgs/proxy_password.png)
-
-This field works in conjunction with the proxy host field to specify the HTTP proxy password.
-
-![](imgs/ssl_validation.png)
-
-When this option is checked, the builder will no longer validate the SSL certificate and hostname of the target instance.
-
-**This has potential security implications so make sure you know what you are doing before enabling this option!**
 
 # Jenkins Pipeline Configuration
 
