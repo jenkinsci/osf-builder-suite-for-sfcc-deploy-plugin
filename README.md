@@ -100,7 +100,7 @@ Examples:
 
 Path (relative to the workspace) to a temp directory, that will be used during the build. If the directory does not exist, it will be created by the builder and it will also be automatically cleaned up before each build.
 
-Example: `tmp/build`
+Example: `tmp/code`
 
 # **Open Commerce API Settings**
 
