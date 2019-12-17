@@ -888,7 +888,6 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
             }
             /* Activating code version */
 
-            openCommerceAPI.close();
             return null;
         }
     }
