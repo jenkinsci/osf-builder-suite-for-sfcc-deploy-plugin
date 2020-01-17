@@ -265,7 +265,12 @@ You can also always consult the pipelines documentation available at <https://j
 
 <https://github.com/jenkinsci/osf-builder-suite-for-sfcc-deploy-plugin/releases>
 
+# FAQ
+* Q: Why am I getting the `InvalidHostHeaderException` while the plugin is making an OCAPI request?
+* A: Go to `Administration >  Sites >  Manage Sites > Business Manager - Hostnames` and whitelist `cert.staging.???.???.demandware.net`.
+
 # Dev
 - `mvn hpi:run`
 - `mvn clean package hpi:hpi`
 - `mvn release:prepare release:perform`
+
