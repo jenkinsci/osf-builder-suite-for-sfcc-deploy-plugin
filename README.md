@@ -189,6 +189,10 @@ Go to `Administration > Organization > WebDAV Client Permissions` and add follow
 
 ```
 
+# **Whitelist cert.staging.???.???.demandware.net hostname**
+
+Go to `Administration > Sites > Manage Sites > Business Manager - Hostnames` and whitelist `cert.staging.???.???.demandware.net`
+
 
 # Jenkins Pipeline Configuration
 
