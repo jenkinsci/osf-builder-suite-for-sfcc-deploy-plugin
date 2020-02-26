@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateExpiredException;
@@ -570,9 +571,9 @@ class OpenCommerceAPI {
                 Base64.getEncoder().encodeToString(
                         String.format(
                                 "%s:%s",
-                                ocCredentials.getClientId(),
-                                ocCredentials.getClientPassword().getPlainText()
-                        ).getBytes(Consts.UTF_8)
+                                URLEncoder.encode(ocCredentials.getClientId(), "UTF-8"),
+                                URLEncoder.encode(ocCredentials.getClientPassword().getPlainText(), "UTF-8")
+                        ).getBytes(StandardCharsets.UTF_8)
                 )
         ));
 
