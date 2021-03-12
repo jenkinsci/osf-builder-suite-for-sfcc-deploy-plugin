@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.jenkins-ci.plugins</groupId>
         <artifactId>plugin</artifactId>
-        <version>3.56</version>
+        <version>4.16</version>
         <relativePath />
     </parent>
 
@@ -43,7 +43,7 @@
     <properties>
         <jdk.version>1.8</jdk.version>
         <java.level>8</java.level>
-        <jenkins.version>2.164.1</jenkins.version>
+        <jenkins.version>2.274</jenkins.version>
     </properties>
 
     <build>
@@ -94,35 +94,35 @@
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>structs</artifactId>
-            <version>1.17</version>
+            <version>1.22</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.jenkins-ci.plugins/credentials -->
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>credentials</artifactId>
-            <version>2.1.18</version>
+            <version>2.3.11</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.jenkins-ci.plugins/osf-builder-suite-for-sfcc-credentials -->
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>osf-builder-suite-for-sfcc-credentials</artifactId>
-            <version>1.0.4</version>
+            <version>1.0.8</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.jenkins-ci.plugins/token-macro -->
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>token-macro</artifactId>
-            <version>2.6</version>
+            <version>2.15</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-lang3 -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
-            <version>3.9</version>
+            <version>3.11</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-text -->
