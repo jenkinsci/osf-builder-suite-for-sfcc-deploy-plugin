@@ -58,13 +58,13 @@ import java.util.*;
 import java.util.stream.Stream;
 
 class OpenCommerceAPI {
-    private String hostname;
-    private HTTPProxyCredentials httpProxyCredentials;
-    private Boolean disableSSLValidation;
-    private TwoFactorAuthCredentials tfCredentials;
-    private OpenCommerceAPICredentials ocCredentials;
-    private String ocVersion;
-    private String codeVersionString;
+    private final String hostname;
+    private final HTTPProxyCredentials httpProxyCredentials;
+    private final Boolean disableSSLValidation;
+    private final TwoFactorAuthCredentials tfCredentials;
+    private final OpenCommerceAPICredentials ocCredentials;
+    private final String ocVersion;
+    private final String codeVersionString;
 
     private String cacheAuthType;
     private String cacheAuthToken;
@@ -693,6 +693,7 @@ class OpenCommerceAPI {
                 authResponse.getAuthToken()
         ));
 
+        requestBuilder.setEntity(new StringEntity("", StandardCharsets.UTF_8));
         requestBuilder.setUri(String.format(
                 "https://%s/s/-/dw/data/%s/code_versions/%s?client_id=%s",
                 hostname,
