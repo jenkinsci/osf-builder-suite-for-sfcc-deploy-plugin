@@ -693,7 +693,9 @@ class OpenCommerceAPI {
                 authResponse.getAuthToken()
         ));
 
-        requestBuilder.setEntity(new StringEntity("", StandardCharsets.UTF_8));
+        //setting Content-Length since some servers will return 411 if not present.
+        requestBuilder.setHeader(HttpHeaders.CONTENT_LENGTH, "0");
+
         requestBuilder.setUri(String.format(
                 "https://%s/s/-/dw/data/%s/code_versions/%s?client_id=%s",
                 hostname,
