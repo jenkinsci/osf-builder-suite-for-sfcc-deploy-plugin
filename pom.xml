@@ -43,7 +43,7 @@
     <properties>
         <jdk.version>1.8</jdk.version>
         <java.level>8</java.level>
-        <jenkins.version>2.274</jenkins.version>
+        <jenkins.version>2.263.4</jenkins.version>
     </properties>
 
     <build>
@@ -94,7 +94,7 @@
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>structs</artifactId>
-            <version>1.22</version>
+            <version>1.23</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.jenkins-ci.plugins/credentials -->
