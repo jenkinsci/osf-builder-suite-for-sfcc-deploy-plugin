@@ -61,7 +61,7 @@
                 <groupId>org.jenkins-ci.tools</groupId>
                 <artifactId>maven-hpi-plugin</artifactId>
                 <configuration>
-                    <!-- pluginFirstClassLoader>true</pluginFirstClassLoader -->
+                    <pluginFirstClassLoader>true</pluginFirstClassLoader>
                     <minimumJavaVersion>8</minimumJavaVersion>
                 </configuration>
             </plugin>
