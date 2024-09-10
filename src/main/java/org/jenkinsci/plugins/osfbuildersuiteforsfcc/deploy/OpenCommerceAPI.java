@@ -678,7 +678,7 @@ class OpenCommerceAPI {
 
         cacheAuthToken = accessToken;
         cacheAuthType = tokenType;
-        cacheAuthExpire = (new Date().getTime() / 1000L) + expiresIn - 60;
+        cacheAuthExpire = (new Date().getTime() / 1000L) + expiresIn - 599;
 
         return new AuthResponse(cacheAuthToken, cacheAuthType);
     }

@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.jenkins-ci.plugins</groupId>
         <artifactId>plugin</artifactId>
-        <version>4.16</version>
+        <version>4.87</version>
         <relativePath />
     </parent>
 
@@ -41,9 +41,9 @@
     </licenses>
 
     <properties>
-        <jdk.version>1.8</jdk.version>
-        <java.level>8</java.level>
-        <jenkins.version>2.263.4</jenkins.version>
+        <jdk.version>11</jdk.version>
+        <java.level>11</java.level>
+        <jenkins.version>2.414.3</jenkins.version>
     </properties>
 
     <build>
@@ -54,7 +54,6 @@
                 <configuration>
                     <source>${jdk.version}</source>
                     <target>${jdk.version}</target>
-                    <optimize>true</optimize>
                 </configuration>
             </plugin>
             <plugin>
@@ -62,7 +61,7 @@
                 <artifactId>maven-hpi-plugin</artifactId>
                 <configuration>
                     <!-- pluginFirstClassLoader>true</pluginFirstClassLoader -->
-                    <minimumJavaVersion>8</minimumJavaVersion>
+                    <minimumJavaVersion>11</minimumJavaVersion>
                 </configuration>
             </plugin>
             <plugin>
