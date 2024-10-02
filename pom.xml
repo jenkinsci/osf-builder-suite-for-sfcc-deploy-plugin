@@ -100,7 +100,7 @@
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>credentials</artifactId>
-            <version>2.6.1.1</version>
+            <version>1381.v2c3a_12074da_b_</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.jenkins-ci.plugins/osf-builder-suite-for-sfcc-credentials -->
