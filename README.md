@@ -122,9 +122,11 @@ This field works in conjunction with the proxy host field to specify the HTTP pr
 
 ![](imgs/ssl_validation.png)
 
-When this option is checked, the builder will no longer validate the SSL certificate and hostname of the target instance.
+When this option is checked, the builder will no longer validate the SSL certificate and hostname of the target instance. This applies to instances using two factor auth as well.
 
 **This has potential security implications so make sure you know what you are doing before enabling this option!**
+
+Note that you rarely need this: the `Server Certificate` of the `Two Factor Auth Credentials` is trusted *in addition to* the certificate authorities that the JVM running the Jenkins node already trusts, so a renewed instance certificate issued by a public CA is picked up automatically. If the node sits behind a TLS intercepting proxy, import the proxy CA certificate into that JVM's trust store rather than disabling validation.
 
 
 # **Open Commerce API Settings**
