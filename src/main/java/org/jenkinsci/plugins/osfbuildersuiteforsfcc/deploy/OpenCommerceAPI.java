@@ -41,8 +41,13 @@ import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.OpenCommerceAPIC
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.TwoFactorAuthCredentials;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.net.URLEncoder;
@@ -58,6 +63,7 @@ import java.util.*;
 import java.util.stream.Stream;
 
 class OpenCommerceAPI {
+    private final PrintStream logger;
     private final String hostname;
     private final HTTPProxyCredentials httpProxyCredentials;
     private final Boolean disableSSLValidation;
@@ -70,7 +76,10 @@ class OpenCommerceAPI {
     private String cacheAuthToken;
     private Long cacheAuthExpire;
 
+    private boolean serverCertificateWarningLogged;
+
     OpenCommerceAPI(
+            PrintStream logger,
             String hostname,
             HTTPProxyCredentials httpProxyCredentials,
             Boolean disableSSLValidation,
@@ -79,6 +88,7 @@ class OpenCommerceAPI {
             String ocVersion,
             String codeVersionString) {
 
+        this.logger = logger;
         this.hostname = hostname;
         this.httpProxyCredentials = httpProxyCredentials;
         this.disableSSLValidation = disableSSLValidation;
@@ -90,6 +100,8 @@ class OpenCommerceAPI {
         this.cacheAuthType = "";
         this.cacheAuthToken = "";
         this.cacheAuthExpire = 0L;
+
+        this.serverCertificateWarningLogged = false;
     }
 
     private CloseableHttpClient getCloseableHttpClient() throws AbortException {
@@ -274,6 +286,7 @@ class OpenCommerceAPI {
         }
 
         SSLContextBuilder sslContextBuilder = SSLContexts.custom();
+        KeyStore customTrustStore = null;
 
         if (tfCredentials != null) {
             Provider bouncyCastleProvider = new BouncyCastleProvider();
@@ -300,22 +313,26 @@ class OpenCommerceAPI {
                 throw abortException;
             }
 
+            // The server certificate is only an extra trust anchor now that the JVM default CAs are
+            // trusted as well, and PKIX does not check the validity of a trust anchor anyway. Warn
+            // and carry on rather than failing the build over a certificate that no longer matters.
+            boolean serverCertificateUsable = true;
+
             try {
                 serverCertificate.checkValidity();
-            } catch (CertificateExpiredException e) {
-                AbortException abortException = new AbortException(String.format(
-                        "The server certificate used for two factor auth is expired!\n%s",
-                        ExceptionUtils.getStackTrace(e)
-                ));
-                abortException.initCause(e);
-                throw abortException;
-            } catch (CertificateNotYetValidException e) {
-                AbortException abortException = new AbortException(String.format(
-                        "The server certificate used for two factor auth is not yet valid!\n%s",
-                        ExceptionUtils.getStackTrace(e)
-                ));
-                abortException.initCause(e);
-                throw abortException;
+            } catch (CertificateExpiredException | CertificateNotYetValidException e) {
+                serverCertificateUsable = false;
+
+                if (!serverCertificateWarningLogged) {
+                    serverCertificateWarningLogged = true;
+
+                    logger.println(String.format(
+                            " ~ The server certificate of the two factor auth credentials is %s." +
+                                    " Ignoring it and relying on the certificate authorities trusted" +
+                                    " by this Jenkins node.",
+                            e instanceof CertificateExpiredException ? "expired" : "not yet valid"
+                    ));
+                }
             }
 
             // Client Certificate
@@ -386,8 +403,6 @@ class OpenCommerceAPI {
             }
 
             // Trust Store
-            KeyStore customTrustStore;
-
             try {
                 customTrustStore = KeyStore.getInstance(KeyStore.getDefaultType());
             } catch (KeyStoreException e) {
@@ -410,11 +425,19 @@ class OpenCommerceAPI {
                 throw abortException;
             }
 
+            // Seed the custom trust store with the CA certificates that the JVM trusts by default.
+            // Without them this trust store REPLACES the default one, and any instance using a
+            // certificate issued by a public CA fails with "PKIX path building failed".
+            // The server certificate from the two factor auth credentials is added on top of these.
+            TrustManagerFactory defaultTrustManagerFactory;
+
             try {
-                customTrustStore.setCertificateEntry(hostname, serverCertificate);
-            } catch (KeyStoreException e) {
+                defaultTrustManagerFactory = TrustManagerFactory.getInstance(
+                        TrustManagerFactory.getDefaultAlgorithm()
+                );
+            } catch (NoSuchAlgorithmException e) {
                 AbortException abortException = new AbortException(String.format(
-                        "Exception thrown while setting up the custom trust store!\n%s",
+                        "Exception thrown while loading the default trust store!\n%s",
                         ExceptionUtils.getStackTrace(e)
                 ));
                 abortException.initCause(e);
@@ -422,14 +445,52 @@ class OpenCommerceAPI {
             }
 
             try {
-                sslContextBuilder.loadTrustMaterial(customTrustStore, null);
-            } catch (NoSuchAlgorithmException | KeyStoreException e) {
+                defaultTrustManagerFactory.init((KeyStore) null);
+            } catch (KeyStoreException e) {
                 AbortException abortException = new AbortException(String.format(
-                        "Exception thrown while setting up the custom trust store!\n%s",
+                        "Exception thrown while loading the default trust store!\n%s",
                         ExceptionUtils.getStackTrace(e)
                 ));
                 abortException.initCause(e);
                 throw abortException;
+            }
+
+            int defaultTrustStoreEntryIndex = 0;
+
+            for (TrustManager defaultTrustManager : defaultTrustManagerFactory.getTrustManagers()) {
+                if (!(defaultTrustManager instanceof X509TrustManager)) {
+                    continue;
+                }
+
+                for (X509Certificate defaultCertificate :
+                        ((X509TrustManager) defaultTrustManager).getAcceptedIssuers()) {
+                    try {
+                        customTrustStore.setCertificateEntry(
+                                String.format("jvm-default-ca-%d", defaultTrustStoreEntryIndex++),
+                                defaultCertificate
+                        );
+                    } catch (KeyStoreException e) {
+                        AbortException abortException = new AbortException(String.format(
+                                "Exception thrown while setting up the custom trust store!\n%s",
+                                ExceptionUtils.getStackTrace(e)
+                        ));
+                        abortException.initCause(e);
+                        throw abortException;
+                    }
+                }
+            }
+
+            if (serverCertificateUsable) {
+                try {
+                    customTrustStore.setCertificateEntry(hostname, serverCertificate);
+                } catch (KeyStoreException e) {
+                    AbortException abortException = new AbortException(String.format(
+                            "Exception thrown while setting up the custom trust store!\n%s",
+                            ExceptionUtils.getStackTrace(e)
+                    ));
+                    abortException.initCause(e);
+                    throw abortException;
+                }
             }
 
             // Key Store
@@ -487,10 +548,22 @@ class OpenCommerceAPI {
 
             char[] keyStorePassword = RandomStringUtils.randomAscii(32).toCharArray();
 
+            // The server certificate used to be appended to the client certificate chain
+            // unconditionally. Only send it when it really is the certificate that issued the client
+            // certificate, otherwise it is an unrelated certificate put on the wire during the TLS
+            // handshake.
+            List<X509Certificate> clientCertificateChain = new ArrayList<>();
+            clientCertificateChain.add(clientCertificate);
+
+            if (serverCertificateUsable
+                    && clientCertificate.getIssuerX500Principal().equals(serverCertificate.getSubjectX500Principal())) {
+                clientCertificateChain.add(serverCertificate);
+            }
+
             try {
                 customKeyStore.setKeyEntry(
                         hostname, customKeyStorePrivateKey, keyStorePassword,
-                        new X509Certificate[]{clientCertificate, serverCertificate}
+                        clientCertificateChain.toArray(new X509Certificate[0])
                 );
             } catch (KeyStoreException e) {
                 AbortException abortException = new AbortException(String.format(
@@ -513,12 +586,27 @@ class OpenCommerceAPI {
             }
         }
 
+        // Only ONE set of trust material may be loaded: SSLContextBuilder collects every trust manager
+        // it creates and hands them all to SSLContext.init(), but the JSSE uses only the FIRST
+        // X509TrustManager of that array. Loading the custom trust store and then the trust-everything
+        // strategy would make "Disable SSL validation" a silent no-op.
         if (disableSSLValidation != null && disableSSLValidation) {
             try {
                 sslContextBuilder.loadTrustMaterial(null, (TrustStrategy) (arg0, arg1) -> true);
             } catch (NoSuchAlgorithmException | KeyStoreException e) {
                 AbortException abortException = new AbortException(String.format(
-                        "Exception thrown while setting up the custom key store!\n%s",
+                        "Exception thrown while disabling the SSL validation!\n%s",
+                        ExceptionUtils.getStackTrace(e)
+                ));
+                abortException.initCause(e);
+                throw abortException;
+            }
+        } else if (customTrustStore != null) {
+            try {
+                sslContextBuilder.loadTrustMaterial(customTrustStore, null);
+            } catch (NoSuchAlgorithmException | KeyStoreException e) {
+                AbortException abortException = new AbortException(String.format(
+                        "Exception thrown while setting up the custom trust store!\n%s",
                         ExceptionUtils.getStackTrace(e)
                 ));
                 abortException.initCause(e);
@@ -556,6 +644,33 @@ class OpenCommerceAPI {
         return httpClientBuilder.build();
     }
 
+    private AbortException httpRequestAbortException(String requestHost, IOException e) {
+        AbortException abortException;
+
+        if (e instanceof SSLException) {
+            abortException = new AbortException(String.format(
+                    "Exception thrown while making HTTP request!\n" +
+                            "The SSL/TLS connection to \"%s\" could not be established.\n" +
+                            "If the error below mentions \"unable to find valid certification path to " +
+                            "requested target\" then the JVM running this Jenkins node does not trust the " +
+                            "certificate presented by that host. Import the certificate of the issuing CA " +
+                            "into the trust store of that JVM. For an instance that uses two factor auth " +
+                            "the certificate can also be added to the \"Server Certificate\" field of the " +
+                            "\"Two Factor Auth Credentials\" used by this job.\n%s",
+                    requestHost,
+                    ExceptionUtils.getStackTrace(e)
+            ));
+        } else {
+            abortException = new AbortException(String.format(
+                    "Exception thrown while making HTTP request!\n%s",
+                    ExceptionUtils.getStackTrace(e)
+            ));
+        }
+
+        abortException.initCause(e);
+        return abortException;
+    }
+
     private AuthResponse auth() throws IOException {
         Long currentTs = new Date().getTime() / 1000L;
         if (cacheAuthExpire > currentTs) {
@@ -586,12 +701,7 @@ class OpenCommerceAPI {
         try {
             httpResponse = httpClient.execute(requestBuilder.build());
         } catch (IOException e) {
-            AbortException abortException = new AbortException(String.format(
-                    "Exception thrown while making HTTP request!\n%s",
-                    ExceptionUtils.getStackTrace(e)
-            ));
-            abortException.initCause(e);
-            throw abortException;
+            throw httpRequestAbortException("account.demandware.com", e);
         }
 
         String httpEntityString;
@@ -710,12 +820,7 @@ class OpenCommerceAPI {
         try {
             httpResponse = httpClient.execute(requestBuilder.build());
         } catch (IOException e) {
-            AbortException abortException = new AbortException(String.format(
-                    "Exception thrown while making HTTP request!\n%s",
-                    ExceptionUtils.getStackTrace(e)
-            ));
-            abortException.initCause(e);
-            throw abortException;
+            throw httpRequestAbortException(hostname, e);
         }
 
         String httpEntityString;
@@ -828,12 +933,7 @@ class OpenCommerceAPI {
         try {
             httpResponse = httpClient.execute(requestBuilder.build());
         } catch (IOException e) {
-            AbortException abortException = new AbortException(String.format(
-                    "Exception thrown while making HTTP request!\n%s",
-                    ExceptionUtils.getStackTrace(e)
-            ));
-            abortException.initCause(e);
-            throw abortException;
+            throw httpRequestAbortException(hostname, e);
         }
 
         try {
@@ -894,12 +994,7 @@ class OpenCommerceAPI {
         try {
             httpResponse = httpClient.execute(requestBuilder.build());
         } catch (IOException e) {
-            AbortException abortException = new AbortException(String.format(
-                    "\nException thrown while making HTTP request!\n%s",
-                    ExceptionUtils.getStackTrace(e)
-            ));
-            abortException.initCause(e);
-            throw abortException;
+            throw httpRequestAbortException(hostname, e);
         }
 
         try {
@@ -956,12 +1051,7 @@ class OpenCommerceAPI {
         try {
             httpResponse = httpClient.execute(requestBuilder.build());
         } catch (IOException e) {
-            AbortException abortException = new AbortException(String.format(
-                    "\nException thrown while making HTTP request!\n%s",
-                    ExceptionUtils.getStackTrace(e)
-            ));
-            abortException.initCause(e);
-            throw abortException;
+            throw httpRequestAbortException(hostname, e);
         }
 
         try {
@@ -1023,12 +1113,7 @@ class OpenCommerceAPI {
         try {
             httpResponse = httpClient.execute(requestBuilder.build());
         } catch (IOException e) {
-            AbortException abortException = new AbortException(String.format(
-                    "Exception thrown while making HTTP request!\n%s",
-                    ExceptionUtils.getStackTrace(e)
-            ));
-            abortException.initCause(e);
-            throw abortException;
+            throw httpRequestAbortException(hostname, e);
         }
 
         String httpEntityString;
