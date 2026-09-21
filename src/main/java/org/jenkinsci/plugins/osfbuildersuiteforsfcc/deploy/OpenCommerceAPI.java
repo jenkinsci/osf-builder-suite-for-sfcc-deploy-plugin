@@ -533,10 +533,21 @@ class OpenCommerceAPI {
 
             char[] keyStorePassword = RandomStringUtils.randomAscii(32).toCharArray();
 
+            // The server certificate used to be appended to the client certificate chain
+            // unconditionally. Only send it when it really is the certificate that issued the client
+            // certificate, otherwise it is an unrelated certificate put on the wire during the TLS
+            // handshake.
+            List<X509Certificate> clientCertificateChain = new ArrayList<>();
+            clientCertificateChain.add(clientCertificate);
+
+            if (clientCertificate.getIssuerX500Principal().equals(serverCertificate.getSubjectX500Principal())) {
+                clientCertificateChain.add(serverCertificate);
+            }
+
             try {
                 customKeyStore.setKeyEntry(
                         hostname, customKeyStorePrivateKey, keyStorePassword,
-                        new X509Certificate[]{clientCertificate, serverCertificate}
+                        clientCertificateChain.toArray(new X509Certificate[0])
                 );
             } catch (KeyStoreException e) {
                 AbortException abortException = new AbortException(String.format(
