@@ -47,6 +47,7 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.net.URLEncoder;
@@ -62,6 +63,7 @@ import java.util.*;
 import java.util.stream.Stream;
 
 class OpenCommerceAPI {
+    private final PrintStream logger;
     private final String hostname;
     private final HTTPProxyCredentials httpProxyCredentials;
     private final Boolean disableSSLValidation;
@@ -74,7 +76,10 @@ class OpenCommerceAPI {
     private String cacheAuthToken;
     private Long cacheAuthExpire;
 
+    private boolean serverCertificateWarningLogged;
+
     OpenCommerceAPI(
+            PrintStream logger,
             String hostname,
             HTTPProxyCredentials httpProxyCredentials,
             Boolean disableSSLValidation,
@@ -83,6 +88,7 @@ class OpenCommerceAPI {
             String ocVersion,
             String codeVersionString) {
 
+        this.logger = logger;
         this.hostname = hostname;
         this.httpProxyCredentials = httpProxyCredentials;
         this.disableSSLValidation = disableSSLValidation;
@@ -94,6 +100,8 @@ class OpenCommerceAPI {
         this.cacheAuthType = "";
         this.cacheAuthToken = "";
         this.cacheAuthExpire = 0L;
+
+        this.serverCertificateWarningLogged = false;
     }
 
     private CloseableHttpClient getCloseableHttpClient() throws AbortException {
@@ -305,22 +313,26 @@ class OpenCommerceAPI {
                 throw abortException;
             }
 
+            // The server certificate is only an extra trust anchor now that the JVM default CAs are
+            // trusted as well, and PKIX does not check the validity of a trust anchor anyway. Warn
+            // and carry on rather than failing the build over a certificate that no longer matters.
+            boolean serverCertificateUsable = true;
+
             try {
                 serverCertificate.checkValidity();
-            } catch (CertificateExpiredException e) {
-                AbortException abortException = new AbortException(String.format(
-                        "The server certificate used for two factor auth is expired!\n%s",
-                        ExceptionUtils.getStackTrace(e)
-                ));
-                abortException.initCause(e);
-                throw abortException;
-            } catch (CertificateNotYetValidException e) {
-                AbortException abortException = new AbortException(String.format(
-                        "The server certificate used for two factor auth is not yet valid!\n%s",
-                        ExceptionUtils.getStackTrace(e)
-                ));
-                abortException.initCause(e);
-                throw abortException;
+            } catch (CertificateExpiredException | CertificateNotYetValidException e) {
+                serverCertificateUsable = false;
+
+                if (!serverCertificateWarningLogged) {
+                    serverCertificateWarningLogged = true;
+
+                    logger.println(String.format(
+                            " ~ The server certificate of the two factor auth credentials is %s." +
+                                    " Ignoring it and relying on the certificate authorities trusted" +
+                                    " by this Jenkins node.",
+                            e instanceof CertificateExpiredException ? "expired" : "not yet valid"
+                    ));
+                }
             }
 
             // Client Certificate
@@ -468,15 +480,17 @@ class OpenCommerceAPI {
                 }
             }
 
-            try {
-                customTrustStore.setCertificateEntry(hostname, serverCertificate);
-            } catch (KeyStoreException e) {
-                AbortException abortException = new AbortException(String.format(
-                        "Exception thrown while setting up the custom trust store!\n%s",
-                        ExceptionUtils.getStackTrace(e)
-                ));
-                abortException.initCause(e);
-                throw abortException;
+            if (serverCertificateUsable) {
+                try {
+                    customTrustStore.setCertificateEntry(hostname, serverCertificate);
+                } catch (KeyStoreException e) {
+                    AbortException abortException = new AbortException(String.format(
+                            "Exception thrown while setting up the custom trust store!\n%s",
+                            ExceptionUtils.getStackTrace(e)
+                    ));
+                    abortException.initCause(e);
+                    throw abortException;
+                }
             }
 
             // Key Store
@@ -541,7 +555,8 @@ class OpenCommerceAPI {
             List<X509Certificate> clientCertificateChain = new ArrayList<>();
             clientCertificateChain.add(clientCertificate);
 
-            if (clientCertificate.getIssuerX500Principal().equals(serverCertificate.getSubjectX500Principal())) {
+            if (serverCertificateUsable
+                    && clientCertificate.getIssuerX500Principal().equals(serverCertificate.getSubjectX500Principal())) {
                 clientCertificateChain.add(serverCertificate);
             }
 

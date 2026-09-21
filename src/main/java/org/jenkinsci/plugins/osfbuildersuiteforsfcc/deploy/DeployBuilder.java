@@ -835,6 +835,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
 
 
             OpenCommerceAPI openCommerceAPI = new OpenCommerceAPI(
+                    logger,
                     hostname,
                     httpProxyCredentials,
                     disableSSLValidation,
