@@ -34,6 +34,7 @@ import org.jenkinsci.plugins.osfbuildersuiteforsfcc.deploy.repeatable.SourcePath
 import org.jenkinsci.plugins.tokenmacro.MacroEvaluationException;
 import org.jenkinsci.plugins.tokenmacro.TokenMacro;
 import org.kohsuke.stapler.*;
+import org.kohsuke.stapler.verb.POST;
 import org.zeroturnaround.zip.ByteSource;
 import org.zeroturnaround.zip.ZipEntrySource;
 import org.zeroturnaround.zip.ZipUtil;
@@ -313,6 +314,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
 
         @SuppressWarnings("unused")
+        @POST
         public ListBoxModel doFillTfCredentialsIdItems(
                 @AncestorInPath Item item,
                 @QueryParameter String credentialsId) {
@@ -345,6 +347,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
 
         @SuppressWarnings("unused")
+        @POST
         public ListBoxModel doFillOcCredentialsIdItems(
                 @AncestorInPath Item item,
                 @QueryParameter String credentialsId) {
@@ -377,6 +380,7 @@ public class DeployBuilder extends Builder implements SimpleBuildStep {
         }
 
         @SuppressWarnings("unused")
+        @POST
         public ListBoxModel doFillHttpProxyCredentialsIdItems(
                 @AncestorInPath Item item,
                 @QueryParameter String credentialsId) {
