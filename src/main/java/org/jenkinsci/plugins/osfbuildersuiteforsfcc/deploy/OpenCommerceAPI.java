@@ -41,6 +41,7 @@ import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.OpenCommerceAPIC
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.TwoFactorAuthCredentials;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
@@ -628,6 +629,33 @@ class OpenCommerceAPI {
         return httpClientBuilder.build();
     }
 
+    private AbortException httpRequestAbortException(String requestHost, IOException e) {
+        AbortException abortException;
+
+        if (e instanceof SSLException) {
+            abortException = new AbortException(String.format(
+                    "Exception thrown while making HTTP request!\n" +
+                            "The SSL/TLS connection to \"%s\" could not be established.\n" +
+                            "If the error below mentions \"unable to find valid certification path to " +
+                            "requested target\" then the JVM running this Jenkins node does not trust the " +
+                            "certificate presented by that host. Import the certificate of the issuing CA " +
+                            "into the trust store of that JVM. For an instance that uses two factor auth " +
+                            "the certificate can also be added to the \"Server Certificate\" field of the " +
+                            "\"Two Factor Auth Credentials\" used by this job.\n%s",
+                    requestHost,
+                    ExceptionUtils.getStackTrace(e)
+            ));
+        } else {
+            abortException = new AbortException(String.format(
+                    "Exception thrown while making HTTP request!\n%s",
+                    ExceptionUtils.getStackTrace(e)
+            ));
+        }
+
+        abortException.initCause(e);
+        return abortException;
+    }
+
     private AuthResponse auth() throws IOException {
         Long currentTs = new Date().getTime() / 1000L;
         if (cacheAuthExpire > currentTs) {
@@ -658,12 +686,7 @@ class OpenCommerceAPI {
         try {
             httpResponse = httpClient.execute(requestBuilder.build());
         } catch (IOException e) {
-            AbortException abortException = new AbortException(String.format(
-                    "Exception thrown while making HTTP request!\n%s",
-                    ExceptionUtils.getStackTrace(e)
-            ));
-            abortException.initCause(e);
-            throw abortException;
+            throw httpRequestAbortException("account.demandware.com", e);
         }
 
         String httpEntityString;
@@ -782,12 +805,7 @@ class OpenCommerceAPI {
         try {
             httpResponse = httpClient.execute(requestBuilder.build());
         } catch (IOException e) {
-            AbortException abortException = new AbortException(String.format(
-                    "Exception thrown while making HTTP request!\n%s",
-                    ExceptionUtils.getStackTrace(e)
-            ));
-            abortException.initCause(e);
-            throw abortException;
+            throw httpRequestAbortException(hostname, e);
         }
 
         String httpEntityString;
@@ -900,12 +918,7 @@ class OpenCommerceAPI {
         try {
             httpResponse = httpClient.execute(requestBuilder.build());
         } catch (IOException e) {
-            AbortException abortException = new AbortException(String.format(
-                    "Exception thrown while making HTTP request!\n%s",
-                    ExceptionUtils.getStackTrace(e)
-            ));
-            abortException.initCause(e);
-            throw abortException;
+            throw httpRequestAbortException(hostname, e);
         }
 
         try {
@@ -966,12 +979,7 @@ class OpenCommerceAPI {
         try {
             httpResponse = httpClient.execute(requestBuilder.build());
         } catch (IOException e) {
-            AbortException abortException = new AbortException(String.format(
-                    "\nException thrown while making HTTP request!\n%s",
-                    ExceptionUtils.getStackTrace(e)
-            ));
-            abortException.initCause(e);
-            throw abortException;
+            throw httpRequestAbortException(hostname, e);
         }
 
         try {
@@ -1028,12 +1036,7 @@ class OpenCommerceAPI {
         try {
             httpResponse = httpClient.execute(requestBuilder.build());
         } catch (IOException e) {
-            AbortException abortException = new AbortException(String.format(
-                    "\nException thrown while making HTTP request!\n%s",
-                    ExceptionUtils.getStackTrace(e)
-            ));
-            abortException.initCause(e);
-            throw abortException;
+            throw httpRequestAbortException(hostname, e);
         }
 
         try {
@@ -1095,12 +1098,7 @@ class OpenCommerceAPI {
         try {
             httpResponse = httpClient.execute(requestBuilder.build());
         } catch (IOException e) {
-            AbortException abortException = new AbortException(String.format(
-                    "Exception thrown while making HTTP request!\n%s",
-                    ExceptionUtils.getStackTrace(e)
-            ));
-            abortException.initCause(e);
-            throw abortException;
+            throw httpRequestAbortException(hostname, e);
         }
 
         String httpEntityString;
