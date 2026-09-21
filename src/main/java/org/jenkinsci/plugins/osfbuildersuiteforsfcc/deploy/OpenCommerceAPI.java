@@ -41,6 +41,9 @@ import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.OpenCommerceAPIC
 import org.jenkinsci.plugins.osfbuildersuiteforsfcc.credentials.TwoFactorAuthCredentials;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
@@ -274,6 +277,7 @@ class OpenCommerceAPI {
         }
 
         SSLContextBuilder sslContextBuilder = SSLContexts.custom();
+        KeyStore customTrustStore = null;
 
         if (tfCredentials != null) {
             Provider bouncyCastleProvider = new BouncyCastleProvider();
@@ -386,8 +390,6 @@ class OpenCommerceAPI {
             }
 
             // Trust Store
-            KeyStore customTrustStore;
-
             try {
                 customTrustStore = KeyStore.getInstance(KeyStore.getDefaultType());
             } catch (KeyStoreException e) {
@@ -410,11 +412,19 @@ class OpenCommerceAPI {
                 throw abortException;
             }
 
+            // Seed the custom trust store with the CA certificates that the JVM trusts by default.
+            // Without them this trust store REPLACES the default one, and any instance using a
+            // certificate issued by a public CA fails with "PKIX path building failed".
+            // The server certificate from the two factor auth credentials is added on top of these.
+            TrustManagerFactory defaultTrustManagerFactory;
+
             try {
-                customTrustStore.setCertificateEntry(hostname, serverCertificate);
-            } catch (KeyStoreException e) {
+                defaultTrustManagerFactory = TrustManagerFactory.getInstance(
+                        TrustManagerFactory.getDefaultAlgorithm()
+                );
+            } catch (NoSuchAlgorithmException e) {
                 AbortException abortException = new AbortException(String.format(
-                        "Exception thrown while setting up the custom trust store!\n%s",
+                        "Exception thrown while loading the default trust store!\n%s",
                         ExceptionUtils.getStackTrace(e)
                 ));
                 abortException.initCause(e);
@@ -422,8 +432,44 @@ class OpenCommerceAPI {
             }
 
             try {
-                sslContextBuilder.loadTrustMaterial(customTrustStore, null);
-            } catch (NoSuchAlgorithmException | KeyStoreException e) {
+                defaultTrustManagerFactory.init((KeyStore) null);
+            } catch (KeyStoreException e) {
+                AbortException abortException = new AbortException(String.format(
+                        "Exception thrown while loading the default trust store!\n%s",
+                        ExceptionUtils.getStackTrace(e)
+                ));
+                abortException.initCause(e);
+                throw abortException;
+            }
+
+            int defaultTrustStoreEntryIndex = 0;
+
+            for (TrustManager defaultTrustManager : defaultTrustManagerFactory.getTrustManagers()) {
+                if (!(defaultTrustManager instanceof X509TrustManager)) {
+                    continue;
+                }
+
+                for (X509Certificate defaultCertificate :
+                        ((X509TrustManager) defaultTrustManager).getAcceptedIssuers()) {
+                    try {
+                        customTrustStore.setCertificateEntry(
+                                String.format("jvm-default-ca-%d", defaultTrustStoreEntryIndex++),
+                                defaultCertificate
+                        );
+                    } catch (KeyStoreException e) {
+                        AbortException abortException = new AbortException(String.format(
+                                "Exception thrown while setting up the custom trust store!\n%s",
+                                ExceptionUtils.getStackTrace(e)
+                        ));
+                        abortException.initCause(e);
+                        throw abortException;
+                    }
+                }
+            }
+
+            try {
+                customTrustStore.setCertificateEntry(hostname, serverCertificate);
+            } catch (KeyStoreException e) {
                 AbortException abortException = new AbortException(String.format(
                         "Exception thrown while setting up the custom trust store!\n%s",
                         ExceptionUtils.getStackTrace(e)
@@ -513,12 +559,27 @@ class OpenCommerceAPI {
             }
         }
 
+        // Only ONE set of trust material may be loaded: SSLContextBuilder collects every trust manager
+        // it creates and hands them all to SSLContext.init(), but the JSSE uses only the FIRST
+        // X509TrustManager of that array. Loading the custom trust store and then the trust-everything
+        // strategy would make "Disable SSL validation" a silent no-op.
         if (disableSSLValidation != null && disableSSLValidation) {
             try {
                 sslContextBuilder.loadTrustMaterial(null, (TrustStrategy) (arg0, arg1) -> true);
             } catch (NoSuchAlgorithmException | KeyStoreException e) {
                 AbortException abortException = new AbortException(String.format(
-                        "Exception thrown while setting up the custom key store!\n%s",
+                        "Exception thrown while disabling the SSL validation!\n%s",
+                        ExceptionUtils.getStackTrace(e)
+                ));
+                abortException.initCause(e);
+                throw abortException;
+            }
+        } else if (customTrustStore != null) {
+            try {
+                sslContextBuilder.loadTrustMaterial(customTrustStore, null);
+            } catch (NoSuchAlgorithmException | KeyStoreException e) {
+                AbortException abortException = new AbortException(String.format(
+                        "Exception thrown while setting up the custom trust store!\n%s",
                         ExceptionUtils.getStackTrace(e)
                 ));
                 abortException.initCause(e);
